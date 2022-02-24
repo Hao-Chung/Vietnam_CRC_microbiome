@@ -1,0 +1,1969 @@
+---
+title: "Vietnam_CRCmicrobiome_analysis_2021.Rmd"
+author: "Hao Chung The"
+date: "10/12/2021"
+output: html_document
+---
+
+This dataset is composed of saliva and gut mucosal 16S profiling of 25 controls and 43 CRC cases (totaling 203 samples). DNA from each sample is extracted and subjected to 16S sequencing using the conventional V4 primers. The amplified region is ~250 bp in length, and the data has been denoised and merged to create ASVs using DADA2 (in a separate R file). The amplicon sequence variant (ASV) approach is chosen instead of clustering sequences into OTUs using fixed threshold. 
+
+Taxonomic assignment was performed under the RDP implementation in DADA2, using the SILVA training dataset, with 50% bootstrap confidence threshold. ASVs were classified up to the species level where possible. 
+---
+
+=========================================================
+We first import the phyloseq object after pre-processing and associated metadata
+Initialize by loading necessary libraries
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(phyloseq)
+library(stringr)
+library(vegan)
+library(phytools)
+library(ranacapa)
+library(ggplot2)
+library(philr)
+library(zCompositions)
+library(DESeq2)
+library(microbiome)
+library(ANCOMBC)
+library(dplyr)
+library(nloptr)
+library(randomForestSRC)
+library(ggRandomForests)
+library(reshape2)
+library(zinbwave)
+library(scran)
+library(apeglm)
+library(ashr)
+library(corncob)
+library(qdap)
+library(cluster)
+library(fpc)
+library(SpiecEasi)
+library(igraph)
+
+load(file="./27EN_phyloseq_CRC_keep.RData")
+meta.df <- read.table(file="./27EN_compiled_metadata.csv", sep=",", header=TRUE, stringsAsFactors = FALSE)
+rownames(meta.df) <- meta.df$sample_ID
+meta.df <- meta.df[,-c(1)]
+
+## attach metadata into the phyloseq object 
+sample_data(crc.keep) <- sample_data(meta.df)
+crc.keep ## 2461 taxa with 203 samples
+
+## Plotting simple PCA for sanity check. The dataset includes both saliva and gut mucosal microbiome data
+sample_data(crc.keep)$sample_type <- 
+      factor(sample_data(crc.keep)$sample_type, levels=c('saliva', 'biopsy', 'polyp', 'nontumour', 'tumour'))
+all.ord <- ordinate(crc.keep, method="PCoA", distance='bray') ## Bray-curtis distance
+plot_scree(all.ord) + xlim(as.character(seq(1,50))) + coord_cartesian(xlim=c(0,50))
+all.ord$values$Relative_eig[1:2] ## the two principal coordinates account for 22.5% and 6.9% of variation in the data
+
+plot_ordination(crc.keep, all.ord, type="samples", color="sample_type") + geom_point(size=2) + 
+      theme_gray() + scale_color_manual(values=c("forestgreen","lightskyblue",'royalblue3', "lightpink1", "indianred4")) + 
+      xlab("PCoA1 (22.6%)") + ylab("PCoA2 (6.9%)") + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90')) 
+### This showed that saliva samples are well separated from gut mucosa samples since they are composed of completely different microbiomes. This showed that there has been no gross mislabelling during the sequencing
+
+```
+
+Compare the baseline characteristic between the two groups
+
+```{r}
+## first check the data
+with(meta.df, table(sample_type))
+patient.df <- meta.df[meta.df$sample_type == 'tumour' | meta.df$sample_type=='polyp',]
+patient.df[is.na(patient.df$Age),] ## five patient with missing data. These will be removed.
+na.patient <- patient.df[is.na(patient.df$Age),'Patient']
+patient.df <- patient.df[!(patient.df$Patient %in% na.patient),]
+table(patient.df$Group) ## 21 control and 42 cases with associated metadata
+
+## Testing for multiple demographic and clinical information
+with(patient.df, t.test(Age~Group)) ## NS
+fisher.test(with(patient.df, table(sex, Group))) # NS
+with(patient.df, t.test(BMI~Group)) #NS
+fisher.test(with(patient.df, table(Asian_BMI_class, Group))[c(1:2),]) #NS
+fisher.test(with(patient.df, table(diabetes, Group))) #NS
+fisher.test(with(patient.df, table(HBP, Group))) #NS HBP= high blood pressure
+fisher.test(with(patient.df, table(smoking_active_2y, Group))) #NS
+fisher.test(with(patient.df, table(alcohol_active_2y, Group))) ## NS
+
+## Any self-reported oral illnesses
+patient.df$oral_dis <- as.vector(patient.df$gingivitis == 'yes' | patient.df$periodontitis == "yes" | 
+                                                    patient.df$badbreath=='yes')
+patient.df$oral_dis <- str_replace(patient.df$oral_dis, 'TRUE', 'yes')
+patient.df$oral_dis <- str_replace(patient.df$oral_dis, 'FALSE', 'no')
+fisher.test(with(patient.df, table(oral_dis, Group))) # NS
+
+# Family history of cancer
+patient.df$hist_cancer <- patient.df$family_history_cancer
+patient.df[which(patient.df$hist_cancer != 'no'), 'hist_cancer'] <- 'yes'
+fisher.test(with(patient.df, table(hist_cancer, Group))) ## NS 
+
+# Regarding anatomy
+with(patient.df, table(anatomy, Group))
+
+## There is no signficant differences in the metadata between cases and controls
+```
+
+We will analyze the saliva and gut mucosal microbiomes separately
+
+```{r}
+## First we output the saliva microbiome first
+saliva.ps <- prune_samples(sample_names(crc.keep)[which(sample_data(crc.keep)$sample_type == 'saliva')], crc.keep)
+saliva.ps <- prune_taxa(taxa_sums(saliva.ps) > 0, saliva.ps)
+saliva.ps ## 67 samples with 1278 taxa
+
+## explore singleton
+saliva.tx.pres <- rowSums(abundances(saliva.ps) > 0) ## taxa with number of non-zero presences in the samples.
+saliva.singleton <- as.vector(as.matrix(tax_table(saliva.ps)[names(which(saliva.tx.pres == 1)),"Genus"])) ## 554 singleton taxa
+names(saliva.singleton) <- rownames(tax_table(saliva.ps)[names(which(saliva.tx.pres == 1)), "Genus"])
+sort(table(saliva.singleton),decreasing = TRUE) ## most common singleton taxa are Prevotella, Leptotrichia, Veillonella, Fusobacterium, Treponema, etc. 
+
+## Examine the counts of singleton taxa 
+sort(taxa_sums(saliva.ps)[names(saliva.singleton)], decreasing=TRUE)
+summary(taxa_sums(saliva.ps)[names(saliva.singleton)]) # median is 38 reads, third quartile is 79 reads.
+## Only retain singleton with high counts, select ones with read count ≥ 79 reads
+table(saliva.singleton[names(which(taxa_sums(saliva.ps)[names(saliva.singleton)] < 79))]) ## a wide range of genera
+saliva.taxa.rm <- names(which(taxa_sums(saliva.ps)[names(saliva.singleton)] < 79))
+
+## Remove singleton taxa that have read abundance < 79 reads
+saliva.fil <- prune_taxa(!(taxa_names(saliva.ps) %in% saliva.taxa.rm), saliva.ps)
+saliva.fil ## 865 taxa
+summary(sample_sums(saliva.fil)/sample_sums(saliva.ps)) ## only 1-2% difference in the total number of reads, median of 99.5% retainment 
+
+## Check if the samples have necessary coverage/library size, by using rarefaction curve
+saliva.ggrare <- ggrare(saliva.fil, step=100, label=NULL, color='Group')
+saliva.ggrare <- saliva.ggrare + xlim(0,10000) + theme(legend.position = 'bottom')
+saliva.ggrare ## plateauing occurs at less than 2,500 reads
+sort(sample_sums(saliva.fil)) ## sample S0-5 only have 837 reads, to remove for downstream analyses
+
+saliva.fil <- prune_samples(sample_names(saliva.fil) != 'S0-5', saliva.fil)
+saliva.fil <- prune_taxa(taxa_sums(saliva.fil) > 0, saliva.fil)
+```
+
+For downstream analyses, we input a phylogenetic of 865 taxa found in the saliva dataset. The phylogeny was constructed by IQtree (GTR+G model, 1000 rapid bootstrap, midpoint rooted), using the PASTA-generated alignment of the bacterial V4 sequences of 865 ASVs. 
+
+Some exploratory analyses for saliva microbiome, using basic ordination.
+
+```{r}
+saliva.tre <- read.newick(file="./27EN_saliva_fil_865seqs.snp.fa.contree.midroot.newick")
+phy_tree(saliva.fil) <- saliva.tre
+saliva.fil
+sample_data(saliva.fil)$oral_dis <- patient.df[match(sample_data(saliva.fil)$Patient, patient.df$Patient), 'oral_dis']
+## Remove samples without associated metadata
+saliva.fil2 <- prune_samples(!(is.na(sample_data(saliva.fil)$Age)), saliva.fil)
+saliva.fil2 <- prune_taxa(taxa_sums(saliva.fil2) > 0, saliva.fil2)
+saliva.fil2  ## 62 samples 
+
+## Transform phyloseq into normalized count based on the median of sample_sums
+saliva.median <- round(median(sample_sums(saliva.fil2))) #36250 reads
+standf <- function(x, t=saliva.median) round(t* (x/sum(x)))
+saliva.prop <- transform_sample_counts(saliva.fil2, standf) ## normalized to the same library size
+saliva.dt <- transform_sample_counts(saliva.fil2, function(x) x/sum(x)) ## relative abundance
+
+## Examining the composition of saliva microbiome
+plot_bar(saliva.prop, fill="Phylum") + geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")
+
+plot_richness(saliva.prop, measures=c("Shannon", "Chao1"), color="Group") ## quite similar actually
+sample_data(saliva.prop)$Shannon <- as.vector(as(estimate_richness(saliva.prop, measures="Shannon"),'matrix'))
+sample_data(saliva.prop)$Chao1 <- as.vector(as(estimate_richness(saliva.prop, measures="Chao1")[,1],'matrix'))
+sample_data(saliva.prop)$InvSimp <- as.vector(as(estimate_richness(saliva.prop, measures="InvSimpson"),'matrix'))
+saliva.df <- as(sample_data(saliva.prop), 'data.frame')
+
+## Testing for difference in alpha-diversity between two groups
+tapply(saliva.df$Shannon, saliva.df$Group, summary)
+with(saliva.df, t.test(Shannon ~ Group)) ## NS
+
+tapply(saliva.df$Chao1, saliva.df$Group, summary)
+with(saliva.df, t.test(Chao1~ Group)) ## NS
+
+tapply(saliva.df$InvSimp, saliva.df$Group, summary)
+with(saliva.df, t.test(InvSimp ~ Group)) ## NS
+## No significant difference in alpha diversity between two groups
+
+## Ordination based on Bray-Curtis and weighted Unifrac 
+saliva.wunifrac <- phyloseq::distance(saliva.prop, method="wunifrac")
+saliva.bray <- phyloseq::distance(saliva.prop, method="bray")
+saliva.ordw <- ordinate(saliva.prop, 'PCoA', saliva.wunifrac)
+saliva.ordb <- ordinate(saliva.prop, 'PCoA', saliva.bray)
+
+## Generate a weighted unifrac PCoA plot
+plot_scree(saliva.ordw) + xlim(as.character(seq(1,50))) + coord_cartesian(xlim=c(0,50))
+plot_ordination(saliva.prop, saliva.ordw, type="samples", color="Group") + 
+      geom_point(size=2) + 
+      theme_bw() + scale_color_manual(values=c("chocolate1", 'dodgerblue1')) + 
+      xlab("PCoA1 (35%)") + ylab("PCoA2 (21%)") + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90'))
+## no clear separation betweeen cases and control saliva
+
+## Generate a Bray-Curtis PCoA plot
+plot_scree(saliva.ordb) + xlim(as.character(seq(1,50))) + coord_cartesian(xlim=c(0,50))
+plot_ordination(saliva.prop, saliva.ordb, type="samples", color="Group") + 
+      geom_point(size=2) +
+      theme_bw() + scale_color_manual(values=c("chocolate1", 'dodgerblue1')) + 
+      xlab("PCoA1 (22.4%)") + ylab("PCoA2 (9%)") + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90')) 
+## no clear separation between case and control saliva
+```
+
+Let's check if any covariates could explain the variation in the salivary microbiome
+Covariates to include: Group, Age, sex, BMI, oral_dis, smoking_active_2y, alcohol_active_2y. 
+
+```{r}
+## Adonis and capscale for wunifrac distance
+sal.wuni.perm <- adonis(saliva.wunifrac ~ Group + Age + sex + BMI + oral_dis + smoking_active_2y,
+                         data = saliva.df, by='margin', permutations = 9999)
+sal.wuni.perm
+sal.wuni.cca <- capscale(saliva.wunifrac ~ Group + Age + sex + BMI + oral_dis + smoking_active_2y, 
+                         data = saliva.df)
+anova(sal.wuni.cca, by='terms', perm=1e4) ## no variables as significant 
+anova(sal.wuni.cca, by="margin", perm=1e4) ## no significant variables
+
+## Repeat for bray distance
+sal.bray.perm <- adonis2(saliva.bray ~ Group + Age + sex + BMI + oral_dis + smoking_active_2y,
+                         data = saliva.df, by='margin', permutations = 9999)
+sal.bray.cca <- capscale(saliva.bray ~ Group + Age + sex + BMI + oral_dis + smoking_active_2y, 
+                         data = saliva.df)
+anova(sal.bray.cca, by='terms', perm=1e4) ## no variables as significant 
+anova(sal.bray.cca, by="margin", perm=1e4) ## no signficant variables 
+```
+
+The distribution/variance in the salivary microbiome could not be explained by cancer status, age, BMI, oral disease or smoking. These are based on conventional ordination techniques
+
+Next, we examine the compositional data approach, transforming count data into balances, using the isometric log-ratio transformation implemented in the philR package. After such transformation, the transformed count data could be analyzed under the Euclidean space.
+
+```{r}
+## Impute zero using the cmultRepl function
+otutab.sal.philr <- cmultRepl(t(otu_table(saliva.fil)), method="GBM", output='p-counts')
+## output associated tree and metadata from saliva.fil2
+tree.sal.philr <- makeNodeLabel(phy_tree(saliva.fil), method='number', prefix='n')
+mtdata.sal.philr <- sample_data(saliva.fil)
+taxtab.sal.philr <- tax_table(saliva.fil)
+
+gp.sal <- philr(t(otutab.sal.philr), tree.sal.philr, part.weights = 'enorm.x.gm.counts', ilr.weights= 'blw.sqrt')
+head(gp.sal)
+gp.sal.dist <- dist(gp.sal, method="euclidean")
+
+sal_ord.graph <- plot_ordination(saliva.fil, ordinate(saliva.fil, 'PCoA', distance=gp.sal.dist), type='samples', color="Group") + geom_point(size=1.5) + 
+      theme_bw() + scale_color_manual(values=c('springgreen4',"chocolate1")) + 
+      xlab("PCoA1 (21.1%)") + ylab("PCoA2 (16.8%)") + stat_ellipse(type="t", linetype=1) + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90'))
+sal_ord.graph ## Figure 1A
+## Again no clear clustering based on group
+sal.nomissdata <- which(rownames(gp.sal) %in% rownames(saliva.df))
+gp.sal2 <- gp.sal[sal.nomissdata, ]
+gp.sal2.dist <- dist(gp.sal2, method="euclidean")
+gp.sal.rda <- rda(gp.sal2 ~ Group + Age + sex + BMI + oral_dis + smoking_active_2y, data = saliva.df)
+gp.sal.rda
+plot(gp.sal.rda)
+gp.sal.rda.res <- anova(gp.sal.rda, by="terms", perm=1e5)
+gp.sal.rda.res2 <-anova(gp.sal.rda, by="margin", perm=1e5)
+gp.sal.rda.res
+gp.sal.rda.res2
+adonis2(gp.sal2.dist ~ Group + Age + sex + BMI + oral_dis + smoking_active_2y,
+                         data = saliva.df, by='margin', permutations = 999)
+
+
+## This time, testing showed that smoking history in the last two year is borderline significant (p-value < 0.05)
+```
+Ordination and PERMANOVA showed that only active smoking explains the variance of the salivary microbiome.
+
+Next, we aimed to detect taxa that are differentially abundant between the two group. We will use three approaches: DESeq2 (under negative binomial distribution, designed for sparse RNA-seq data), ANCOMBC (accounting for compositional data structure and sampling bias), and corncob. 
+
+```{r}
+# Running ANCOMBC
+require(ANCOMBC)
+require(microbiome)
+## We will use all saliva data, including ones with no associated metadata
+saliva.ancom <- saliva.fil
+otu_table(saliva.ancom) <- otu_table(abundances(saliva.fil),taxa_are_rows = TRUE)
+sample_data(saliva.ancom)$Group <- factor(sample_data(saliva.ancom)$Group, levels=c("control","case"))
+saliva.ancom.out <- 
+      ancombc(saliva.ancom, formula="Group",p_adj_method = "BH", zero_cut = 0.9, lib_cut=1000,
+      group = "Group", struc_zero = TRUE, neg_lb = FALSE, tol=1e-5, max_iter = 300, conserve = FALSE, alpha=0.05)
+## we select neg_lb =FALSE since we have <30 samples in the control group, and we expect that the differences between the two group are not large
+## Primary results
+saliva.ancom.res <- saliva.ancom.out$res
+dim(saliva.ancom.out$feature_table) ##  384 taxa among 66 samples were formally tested
+## create function to output ancombc results
+output_ancombc <- function(physeq, ancom.out, group){
+      ancom.res <- ancom.out$res
+      if (ncol(ancom.res$diff_abn) == 1) {
+            difftx <- rownames(ancom.out$feature_table[which(ancom.res$diff_abn[,group] ==TRUE),])
+      } else {
+            difftx <- rownames(ancom.res$diff_abn[which(ancom.res$diff_abn[,group] ==TRUE),])
+      }
+      rs <- data.frame(difftx, ancom.res$W[difftx, group])
+      colnames(rs) <- c("taxa", "test_stat")
+      rs$qvalue <- ancom.res$q_val[difftx, group]
+      rs$coeff <- ancom.res$beta[difftx, group]
+      rs$Genus <- tax_table(physeq)[difftx, 'Genus']
+      rownames(rs) <- rs$taxa
+      rs <- rs[,c(-1)]
+      rs <- rs[order(rs$test_stat, decreasing=TRUE),]
+      rs$log2fc <- rs$coeff*log2(exp(1))
+      return(rs)
+}
+output_ancombc(physeq = saliva.ancom, ancom.out = saliva.ancom.out, group = "Groupcase")
+
+```
+
+An alternative is to use DESeq2
+
+```{r}
+saliva.deseq <- saliva.fil
+sample_data(saliva.deseq)$Group <- relevel(as.factor(sample_data(saliva.deseq)$Group), ref='control')
+table(rowSums(abundances(saliva.deseq) > 10) > 6)
+saliva.deseq <- prune_taxa(rowSums(abundances(saliva.deseq)> 10) >6, saliva.deseq) ## pruning to exclude taxa with very low abundance
+summary(sample_sums(saliva.deseq)/sample_sums(saliva.fil)) # median of 95% retention in sample size
+length(which(abundances(saliva.deseq) == 0 ))/(ntaxa(saliva.deseq)*nsamples(saliva.deseq)) ## actually moderate number of zero. Sparsity is not that extreme in saliva samples.
+
+## Transform phyloseq into DESeq2 object
+ds.sal <- phyloseq_to_deseq2(saliva.deseq, design= ~ Group)
+ds.sal <- estimateSizeFactors(ds.sal, type='poscounts')
+## Performing testing using DESeq
+ds.sal <- DESeq(ds.sal, fitType = "local", test="Wald",sfType="poscounts")
+DESeq2::plotMA(ds.sal)
+plotDispEsts(ds.sal) ## produced quite a good fit to data
+resultsNames(ds.sal)
+
+## create function to summarize DESeq2 output
+output_deseq2 <- function(physeq, ds, contrast, alpha, coef, testtype) {
+      rs <- results(ds, name=contrast, alpha=alpha, pAdjustMethod ="BH")
+      rs_shrink <- lfcShrink(dds=ds, res=rs, coef=coef, type=testtype) ## correcting log2foldchange
+      rs_shrink <- rs_shrink[order(rs_shrink$padj, na.last=T),]
+      rs_shrink$prank <- seq(1,nrow(rs_shrink))
+      rs_shrink$ASV <- rownames(rs_shrink)
+      rs_shrink <- as.data.frame(rs_shrink)
+      rs_shrink <- rs_shrink[!is.na(rs_shrink$padj),]
+      rs_shrink <- rs_shrink[rs_shrink$padj < alpha,]
+      rs_shrink$Genus <- tax_table(physeq)[rownames(rs_shrink), "Genus"]
+      return(rs_shrink)
+}
+
+rs_sal_shrink <- output_deseq2(physeq = saliva.deseq, ds=ds.sal, contrast="Group_case_vs_control", alpha = 0.05, coef=2, testtype = "apeglm")
+
+rs_sal_shrink[rs_sal_shrink$baseMean > 20 & abs(rs_sal_shrink$log2FoldChange) > 0.5,]
+## only seq119 (Leptotrichia) is significantly enriched in salivary microbiome of case.
+```
+
+Another alternative is to use corncob
+
+```{r}
+saliva.deseq
+sal.corncob <- differentialTest(formula=~Group, phi.formula = ~Group, formula_null = ~1, phi.formula_null=~1,
+                                data=saliva.deseq, taxa_are_rows = FALSE, test="Wald", boot=FALSE,
+                                fdr_cutoff = 0.1, fdr="BH") ## set fdr=0.1 for more power
+plot(sal.corncob)
+sal.corncob$significant_taxa
+sal.corncob$p_fdr[sal.corncob$significant_taxa]
+sal.corncob$significant_models
+## Three taxa are significant. Taxa seq119 (Leptotrichia) and seq433 (Solobacterium) are more abundant in case. 
+```
+
+Based on consistency between the three methods, the number of taxa differentiating salivary microbiome of cases and controls is quite minimal. Only seq119 (Leptotrichia) and seq433 (Solobacterium) are more abundant in the CRC saliva.
+==========================
+
+Next we construct a correlation network for salivary microbiome alone
+
+```{r}
+saliva.fil
+saliva.corkeep <- prune_taxa(rowSums(abundances(saliva.fil)>20)>=22, saliva.fil) ## only include taxa with presence in at least 22 samples, and count over 20 in the samples 
+saliva.corkeep
+summary(sample_sums(saliva.corkeep)/sample_sums(saliva.fil)) ## median of 83% retention
+
+##############################################################################################
+#-----------------------------------------------------------------------------------------------------
+## Taken from CCLASSO methodology
+# The CCLasso function from github
+################################################################################
+# File: cclasso.R
+# Aim : Correlation inference for compositional data through lasso
+#-------------------------------------------------------------------------------
+# Author : Fang Huaying (Peking University)
+# Email  : hyfang@pku.edu.cn
+# Date   : 2016-01-08
+# Version: 2.0
+#-------------------------------------------------------------------------------
+# Main function: cclasso(x, counts = FALSE, pseudo = 0.5, k_cv = 3, 
+#                        lam_int = c(1e-4, 1), k_max = 20, n_boot = 20) 
+#
+#  Input:
+#           x ------ n x p data matrix (row/column is sample/variable)
+#                    n samples & p compositional variables
+#      counts ------ Is the compositional data matrix a count matrix? 
+#                    Default: FALSE
+#      pseudo ------ pseudo count if counts = TRUE
+#                    Default: 0.5
+#        k_cv ------ folds of cross validation
+#                    Default: 3     
+#     lam_int ------ tuning parameter interval
+#                    Default: [1e-4, 1]
+#       k_max ------ maximum iterations for golden section method
+#                    Default: 20
+#      n_boot ------ Bootstrap times
+#                    Default: 20
+#  Output: 
+#      A list structure contains:
+#       var_w ------ variance estimation
+#       cor_w ------ correlation estimation
+#      p_vals ------ p-values for elements of cor_w equal 0 or not
+#      lambda ------ final tuning parameter
+#     info_cv ------ information for cross validation
+#-------------------------------------------------------------------------------
+cclasso <- function(x, counts = FALSE, pseudo = 0.5, k_cv = 3, 
+                    lam_int = c(1e-4, 1), k_max = 20, n_boot = 20) {
+  n <- nrow(x);
+  p <- ncol(x);
+
+  if(counts) {
+    x <- x + pseudo;
+    x <- x / rowSums(x);
+  }
+  x <- log(x);
+  vx2 <- stats::var(x);
+
+  # Diagonal weight for loss function
+  rmean_vx2 <- rowMeans(vx2);
+  wd <- 1/diag(vx2 - rmean_vx2 - rep(rmean_vx2, each = p) + mean(rmean_vx2));
+  wd2 <- sqrt(wd);
+  
+  # Some global parameters for optimization with single lambda
+  rho <- 1;
+  u_f <- eigen(diag(p) - 1/p)$vectors;
+  wd_u <- (t(u_f) %*% (wd * u_f))[-p, -p];
+  wd_u_eig <- eigen(wd_u);
+  d0_wd <- 1 / ( (rep(wd_u_eig$values, each = p-1) + wd_u_eig$values) / 
+    (2 * rho) + 1 );
+  u0_wd <- wd_u_eig$vectors;
+
+  # Golden section method for the selection of lambda (log10 scale)
+  sigma <- vx2;
+  lam_int2 <- log10(range(lam_int));
+  a1 <- lam_int2[1]; 
+  b1 <- lam_int2[2];
+  # Store lambda and corresponding cross validation's loss
+  lams <- NULL; 
+  fvals <- NULL;
+  # Two trial points in first 
+  a2 <- a1 + 0.382 * (b1 - a1); 
+  b2 <- a1 + 0.618 * (b1 - a1);
+  fb2 <- cv_loss_cclasso(lambda2 = 10^b2 / rho, x = x, k_cv = k_cv, 
+    sigma = sigma, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd, 
+    wd2 = wd2);
+  lams <- c(lams, b2); 
+  fvals <- c(fvals, fb2$cv_loss);
+  fa2 <- cv_loss_cclasso(lambda2 = 10^a2 / rho, x = x, k_cv = k_cv, 
+    sigma = fb2$sigma, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd, 
+    wd2 = wd2);
+  lams <- c(lams, a2); 
+  fvals <- c(fvals, fa2$cv_loss);
+  # Error tolerance for convergence
+  err_lam2 <- 1e-1 * max(1, lam_int2);
+  err_fval <- 1e-4;
+    
+  err <- b1 - a1;
+  k <- 0;
+  while(err > err_lam2 && k < k_max) {
+    fval_max <- max(fa2$cv_loss, fb2$cv_loss);
+
+    if(fa2$cv_loss > fb2$cv_loss) {
+      a1 <- a2;      
+      a2 <- b2;
+      fa2 <- fb2;
+      b2 <- a1 + 0.618 * (b1 - a1);
+      fb2 <- cv_loss_cclasso(lambda2 = 10^b2 / rho, x = x, k_cv = k_cv, 
+        sigma = fa2$sigma, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd, 
+        wd2 = wd2);
+
+      lams <- c(lams, b2); 
+      fvals <- c(fvals, fb2$cv_loss);
+    } else {
+      b1 <- b2;
+      b2 <- a2;
+      fb2 <- fa2;
+      a2 <- a1 + 0.382 * (b1 - a1);
+      fa2 <- cv_loss_cclasso(lambda2 = 10^a2 / rho, x = x, k_cv = k_cv, 
+        sigma = fb2$sigma, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd, 
+        wd2 = wd2);
+
+      lams <- c(lams, a2); 
+      fvals <- c(fvals, fa2$cv_loss);
+    }
+    fval_min <- min(fa2$cv_loss, fb2$cv_loss);      
+
+    k <- k + 1;
+    err <- b1 - a1;
+    if(abs(fval_max - fval_min) / (1 + fval_min) <= err_fval) {
+      break;
+    }
+  }
+  info_cv <- list(lams = lams, fvals = fvals, k = k + 2, 
+    lam_int = 10^c(a1, b1)); 
+  if(a1 == lam_int2[1] || b1 == lam_int2[2]) {
+    cat("WARNING:\n", "\tOptimal lambda is near boundary! ([", 10^a1, ",", 
+      10^b1, "])\n", sep = "");
+  }
+
+  lambda <- 10^((a2 + b2)/2);
+  # Bootstrap for cclasso
+  lambda2 <- lambda / rho;
+  info_boot <- boot_cclasso(x = x, sigma = fb2$sigma, lambda2 = lambda2, 
+    n_boot = n_boot, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd);
+
+  return(list(var_w = info_boot$var_w, cor_w = info_boot$cor_w, 
+    p_vals = info_boot$p_vals, lambda = lambda, info_cv = info_cv));
+}
+#-------------------------------------------------------------------------------
+# Bootstrap for cclasso
+boot_cclasso <- function(x, sigma, lambda2, n_boot = 20, 
+                         wd, u_f, u0_wd, d0_wd) {
+  n <- nrow(x);
+  p <- ncol(x);
+
+  # Store the result of bootstrap
+  cors_boot <- matrix(0, nrow = p * (p - 1)/2, ncol = n_boot + 1);
+  vars_boot <- matrix(0, nrow = p, ncol = n_boot + 1);
+  cors_mat <- matrix(0, p, p);
+  ind_low <- lower.tri(cors_mat);
+
+  # Bootstrap procedure
+  sam_boot <- matrix(sample(1:n, size = n * n_boot, replace = T), 
+    ncol = n_boot);
+  for(k in 1:n_boot) {
+    ind_samp <- sam_boot[, k];
+    sigma2 <- cclasso_sub(sigma = sigma, vx = var(x[ind_samp, ]), 
+      lambda2 = lambda2, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd);
+        
+    vars_boot[, k] <- diag(sigma2);
+    Is <- 1 / sqrt(vars_boot[, k]);
+    cors_mat <- Is * sigma2 * rep(Is, each = p);
+    cors_boot[, k] <- cors_mat[ind_low];
+  }
+  Is <- 1 / sqrt(diag(sigma));
+  cors_mat <- sigma * Is * rep(Is, each = p);
+  cors_boot[, n_boot + 1] <- cors_mat[ind_low];
+  vars_boot[, n_boot + 1] <- diag(sigma);
+
+  #----------------------------------------  
+  # Variance estimation via bootstrap
+  vars2 <- rowMeans(vars_boot);
+  #----------------------------------------
+  # Correlations' relationship for artificial null sample
+  tol_cor <- 1e-3;
+  sam_art0 <- matrix(rnorm(n * p), nrow = n) * rep(sqrt(vars2), each = n);
+  cors_art0 <- cor(sam_art0)[ind_low];
+  sam_art <- sam_art0 - log(rowSums(exp(sam_art0)));
+  sigma_art <- cclasso_sub(sigma = sigma, vx = var(sam_art), 
+    lambda2 = lambda2, wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd);
+  Is <- 1 / sqrt(diag(sigma_art));
+  cors_mat <- Is * sigma_art * rep(Is, each = p);
+  cors_art2 <- cors_mat[ind_low];
+  # Bias of estimation between absolute data and cclasso of compositional data
+  cors0m2 <- log( ((1 + cors_art0) * (1 - cors_art2)) / ((1 + cors_art2) * 
+    (1 - cors_art0)) );
+  tmp <- abs(cors_art2) >= tol_cor;
+  bias02 <- ifelse(sum(tmp), median(abs(cors0m2)[tmp]), 0);
+  # Modification of estimation for cclasso
+  cors2 <- log( (1 + cors_boot) / (1 - cors_boot) );    
+  cors2mod <- (cors_boot >= tol_cor) * (cors2 + bias02) + 
+    (cors_boot <= -tol_cor) * (cors2 - bias02);
+  cors2mod <- 1 - rowMeans(2 / (exp(cors2mod) + 1));
+  cors2_mat <- diag(p);
+  cors2_mat[ind_low] <- cors2mod;
+  cors2_mat <- t(cors2_mat);
+  cors2_mat[ind_low] <- cors2mod;
+  # P-values with null distribution of correlation estimations of absolute data
+  p_vals <- pt(cors2mod * sqrt((n - 2) / (1 - cors2mod^2)), df = n - 2);
+  p_vals <- ifelse(p_vals <= 0.5, p_vals, 1 - p_vals);
+  pval_mat <- diag(p);
+  pval_mat[ind_low] <- p_vals;
+  pval_mat <- t(pval_mat);
+  pval_mat[ind_low] <- p_vals;
+  #----------------------------------------
+
+  return(list(var_w = vars2, cor_w = cors2_mat, p_vals = pval_mat));    
+}
+#-------------------------------------------------------------------------------
+# cross validation's loss of cclasso for single lambda
+cv_loss_cclasso <- function(lambda2, x, k_cv, sigma, 
+                            wd, u_f, u0_wd, d0_wd, wd2) {
+  n <- nrow(x);
+  p <- ncol(x);
+
+  n_b <- floor(n / k_cv);
+  cv_loss <- 0;
+  for(k in 1:k_cv) {
+    itest <- (n_b * (k - 1) + 1):(n_b * k);
+    vxk <- stats::var(x[itest, ]);
+    vx2k <- stats::var(x[-itest, ]);
+
+    sigma <- cclasso_sub(sigma = sigma, vx = vx2k, lambda2 = lambda2, 
+      wd = wd, u_f = u_f, u0_wd = u0_wd, d0_wd = d0_wd);
+    
+    dsig <- sigma - vxk;
+    tmp <- rowMeans(dsig);
+    dsig <- dsig - tmp - rep(tmp, each = p) + mean(tmp);
+    cv_loss <- cv_loss + base::norm(wd2 * dsig, "F")^2;
+  }
+
+  return(list(cv_loss = cv_loss, sigma = sigma));
+}
+#-------------------------------------------------------------------------------
+# cclasso for single lambda
+cclasso_sub <- function(sigma, vx, lambda2, 
+                        wd, u_f, u0_wd, d0_wd, 
+                        k_max = 200, x_tol = 1e-4) {
+  p <- ncol(sigma);
+  sigma2 <- sigma;
+  LAMBDA <- matrix(0, p, p);
+  lambda2 <- matrix(lambda2, p, p);
+  diag(lambda2) <- 0;
+
+  k <- 0;
+  err <- 1;
+  while(err > x_tol && k < k_max) {
+    # Update sigma
+    x_sigma <- t(u_f) %*% ((sigma2 - vx) - LAMBDA) %*% u_f;
+    x_sigma[-p,-p] <- u0_wd %*% ((t(u0_wd) %*% x_sigma[-p, -p] %*% u0_wd) * 
+      d0_wd) %*% t(u0_wd);
+    sigma_new <- vx + u_f %*% x_sigma %*% t(u_f);
+    # Update sigma2
+    A <- LAMBDA + sigma_new;
+    sigma2_new <- (A > lambda2) * (A - lambda2) + (A < -lambda2) * 
+      (A + lambda2);
+    # Update Lambda
+    LAMBDA <- LAMBDA + (sigma_new - sigma2_new);
+
+    err <- max( abs(sigma_new - sigma)/(abs(sigma) + 1), 
+      abs(sigma2_new - sigma2)/(abs(sigma2) + 1) ); 
+    k <- k + 1;
+    sigma <- sigma_new;
+    sigma2 <- sigma2_new;
+  }
+
+  if(k >= k_max) {
+    cat("WARNING of cclasso_sub:\n", "\tMaximum Iteration:", k_max, 
+      "&& Relative error:", err, "!\n");
+  }
+  
+  return(sigma);
+}
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+plot_cclasso<- function(cor.map, adj.matrix, phyloseq){
+      # Loading library
+      require(igraph)
+      require(plyr)
+      require(RColorBrewer)
+      
+      # create a graph object from the adjacency matrix
+      g <- graph.adjacency(adj.matrix) 
+      
+      # get the edges as well as the original 
+      edgelist <- get.edgelist(g)
+      
+      edge.cor <- apply(edgelist, MARGIN = 1, FUN = function(x) {cor.map[x[1],x[2]]})
+      edgelist <- data.frame(edgelist, edge.cor)
+      colnames(edgelist) <- c("from","to", "cor")
+      
+      # filter edges that link the same node
+      filt <- edgelist$from == edgelist$to 
+      print("There are some edges that link the same node... now deleting...")
+      edgelist <- edgelist[!filt,]
+      
+      edgelist[,1:2] <- t(apply(edgelist, MARGIN = 1, FUN = function(x){sortEdges(x[1:2])}))
+      dupl <- duplicated(paste(edgelist$from, edgelist$to)); sum(dupl)
+      edgelist <- edgelist[!dupl,]
+      # Take only one direction
+
+      # get the annotation for the nodes that are implicated in the network.
+      all.nodes <- unique(c(as.character(edgelist$from), as.character(edgelist$to)))
+      # Get the taxonomic classification and abundance of OTUs from original data.
+      feat.annot <- taxa_names(phyloseq)[as.numeric(all.nodes)] #OTU names
+      feat.annot <- as.data.frame(feat.annot)
+      rownames(feat.annot) <- feat.annot$feat.annot
+      feat.annot$name <- all.nodes
+      feat.annot <- feat.annot[,c(2,1)]
+      feat.annot$size <- as.vector(taxa_sums(phyloseq)[as.numeric(all.nodes)]) # abundance
+      feat.annot$Order <- as.vector(tax_table(phyloseq)[as.numeric(all.nodes),"Order"]) #Assign taxonomy of the Order level
+      print("Finished first part")
+
+      # create the igraph object
+      gD <- graph.data.frame(d = edgelist, directed = FALSE, vertices = feat.annot)
+      degAll <- igraph::degree(gD, v = V(gD), mode = "all")
+      V(gD)$name <- tax_table(phyloseq)[as.numeric(all.nodes), "Genus"]
+      #V(gD)$name <- rownames(tax_table(phyloseq)[as.numeric(all.nodes),])
+      gD <- set.vertex.attribute(gD, "degree", index = V(gD)$name, value = degAll)
+      
+      # Calculate betweenness for all nodes
+      betAll <- igraph::betweenness(gD, v = V(gD), directed = FALSE) / (((vcount(gD) - 1) * (vcount(gD)-2)) / 2)
+      betAll.norm <- (betAll - min(betAll))/(max(betAll) - min(betAll)); rm(betAll)
+      
+      # Add new node/edge attributes based on the calculated node properties/similarities
+      gD <- set.vertex.attribute(gD, "betweenness", index = V(gD)$name, value = betAll.norm)
+
+      ##Calculate edge properties and add to the network
+      #Calculate Dice similarities between all pairs of nodes
+      dsAll <- similarity.dice(gD, vids = V(gD), mode = "all")
+      # The following function will transform a square matrix to an edge driven one and add 
+      # values to each edge
+      F1 <- function(x) {data.frame(dice = dsAll[which(V(gD)$name == as.character(x$from)), 
+                                           which(V(gD)$name == as.character(x$to))])}
+      edgelist.ext <- ddply(edgelist, .variables=c("from", "to"), 
+                      function(x) data.frame(F1(x))); dim(edgelist.ext)
+      gD <- set.edge.attribute(gD, "similarity", index = E(gD), value = 0)
+      E(gD)[as.character(edgelist.ext$from) %--% as.character(edgelist.ext$to)]$similarity <- as.numeric(edgelist.ext$dice)
+      
+      # Edge color based on type of correlations
+      E(gD)$color <- ifelse(E(gD)$cor < 0, "blue2", "red") # Red for positive, blue for negative
+      # Vertex color based on the Order of the OTU
+      V(gD)$color <- c(brewer.pal(8, "Set1"), brewer.pal(11, "Set3"))[as.factor(V(gD)$Order)]
+
+      # resume the network
+      print(paste("There are",vcount(gD),"nodes and",ecount(gD),"edges"))
+      summary(gD)
+
+      # compute the layout
+      l <- layout.auto(gD)
+      par(oma=c(2,0.2,0.2,0.2))
+
+      pl <- plot(gD,
+            vertex.label = V(gD)$name, 
+            vertex.label.cex=0.7, vertex.size=(log10(V(gD)$size))^2/2,
+            vertex.label.dist=0.8, vertex.label.color='black',
+            edge.arrow.size=2, asp=TRUE, edge.width = abs(E(gD)$cor)*5,
+            rescale=TRUE, layout=l
+           )
+      par(mfrow=c(1,1), fig=c(0,1,0,1), oma=c(2,0,0,0), mar=c(0,0,0,0), new=TRUE)
+      ## legend 
+      legend(-1,-0.95, legend = levels(factor(tax_table(phyloseq)[as.numeric(all.nodes),"Order"])), 
+       fill = c(brewer.pal(8, "Set1"), brewer.pal(11, "Set3")), xpd=TRUE, inset=c(0,0),
+      bty='n', cex=0.6,xjust = 0, ncol=5,text.width = 0.4 ,x.intersp = 0.1, title = "Order")
+      return(pl)
+}
+## To beautify the cclasso plot 
+sortEdges <- function(var.name = c(node1, node2)){
+      if(length(var.name)!=2) stop("Two variable names are needed")
+      if(var.name[2]<var.name[1])
+      {
+            b <- var.name[1]
+            var.name[1] <- var.name[2]
+            var.name[2] <- b
+      }
+      return(var.name)
+}
+
+##############################################################################################
+#-----------------------------------------------------------------------------------------------------
+
+## Apply cclasso to the saliva.corkeep to build correlation network
+saliva.cclasso <- cclasso(otu_table(saliva.corkeep), counts=TRUE, k_cv = 3, n_boot = 250)
+saliva.cor.map <- saliva.cclasso$cor_w
+diag(saliva.cor.map) <- 0 ## all self-interactions are set to 0
+saliva.cor.pvalue <- saliva.cclasso$p_vals
+saliva.cor.map[which(saliva.cor.pvalue <= 0.01)] ## Lots of interactions are estimated to be significant
+### Some exploration
+plot(density(as.numeric(saliva.cor.map)), main="All interactions") ## most interaction has strength centering zero
+plot(density(as.numeric(saliva.cor.map[abs(saliva.cor.map)>0.55])), main="filtered")
+
+## Building adjacent matrix
+saliva.adj.mat <- ((saliva.cor.map >=0.4 | saliva.cor.map <= (-0.5)) & (saliva.cor.pvalue <=0.01)) + 0
+## 1 for plotting interactions, 0 for no interaction
+
+## Appply SpiecEasi to the same data
+sal.se.mb <- spiec.easi(saliva.corkeep, method='mb', lambda.min.ratio=1e-2, nlambda=20,
+                        pulsar.params=list(rep.num=50))
+sal.se.gl <- spiec.easi(saliva.corkeep, method="glasso", lambda.min.ratio=1e-2, nlambda=20,
+                        pulsar.params=list(rep.num=50))
+
+#sal.spieceasi.mat <- as.matrix(sal.se.mb$refit$stars)
+sal.spieceasi.mat <- as.matrix(sal.se.gl$refit$stars)
+
+length(which(sal.spieceasi.mat == 1))
+length(which(saliva.adj.mat==1))
+## Take the overlapping results between the two methods: cclasso and SpiecEasi 
+sal.intersect.cor <- intersect(which(saliva.adj.mat==1), which(sal.spieceasi.mat==1))
+length(sal.intersect.cor)
+sal.intersect.mat <- matrix(0,nrow=ntaxa(saliva.corkeep), ncol=ntaxa(saliva.corkeep))
+sal.intersect.mat[sal.intersect.cor] <- 1
+
+saliva.network <- plot_cclasso(saliva.cor.map, sal.intersect.mat, saliva.corkeep) ## Figure S2
+dev.off()
+```
+
+Correlation network built for salivary microbiome showed the tight structure of the microbiome. Few significant negative interactions lie with Actinomyces. 
+
+=========================================
+
+We next analyse the gut mucosal microbiome
+
+```{r}
+tissue.ps <- prune_samples(sample_data(crc.keep)$sample_type !="saliva", crc.keep)
+tissue.ps <- prune_taxa(taxa_sums(tissue.ps) >0, tissue.ps)
+tissue.ps
+## Explore singleton
+tissue.tx.pres <- rowSums(abundances(tissue.ps) > 0)
+tissue.singleton <- as.vector(as.matrix(tax_table(tissue.ps)[names(which(tissue.tx.pres == 1)),"Genus"])) ## 480 singleton taxa
+names(tissue.singleton) <- rownames(tax_table(tissue.ps)[names(which(tissue.tx.pres == 1)), "Genus"])
+sort(table(tissue.singleton),decreasing = TRUE) # Prevotella, Bacteroides, Lachnoclostridium, Blautia, Faecalibacterium, Leptotrichia, etc. 
+summary(taxa_sums(tissue.ps)[names(tissue.singleton)]) ## Third quartile is 44 reads.
+## Remove singleton taxa with reads < 44
+table(tissue.singleton[names(which(taxa_sums(tissue.ps)[names(tissue.singleton)] < 44))]) # covering a wide range of taxa
+tissue.tx.rm <- names(which(taxa_sums(tissue.ps)[names(tissue.singleton)] < 44))
+
+tissue.fil <- prune_taxa(!(taxa_names(tissue.ps) %in% tissue.tx.rm), tissue.ps)
+summary(sample_sums(tissue.fil)/sample_sums(tissue.ps)) # retained a median 99% of reads 
+tissue.fil # 1073 taxa across 136 samples
+
+## use rarefaction curve to assess the library size/coverage 
+tissue.ggrare <- ggrare(tissue.fil, step=100, label=NULL, color="sample_type")
+ggrare.plot <- tissue.ggrare + xlim(0,10000) + theme(legend.position = 'bottom')
+ggrare.plot
+
+### remove samples with low library sizes
+sort(sample_sums(tissue.fil)) ## samples P29, P3, P12, P15, P20, B20, P2 All have library size < 1300 reads
+tissue.fil <- prune_samples(!(sample_names(tissue.fil) %in% c('P29', 'P3', "P12", "P15", "P20", "B20", "P2")), tissue.fil)
+tissue.fil <- prune_taxa(taxa_sums(tissue.fil)>0, tissue.fil)
+
+### Importing a phylogenetic tree to the phyloseq object. Tree was constructed by Iqtree
+tissue.tre <- read.newick(file="./tissue_fil_taxa_names_1073seqs_pasta.aln.contree.reroot.newick")
+phy_tree(tissue.fil) <- tissue.tre
+```
+
+Next we do some exploratory analyses, including ordination 
+
+```{r}
+tissue.fil
+sample_data(tissue.fil)$oral_dis <- patient.df[match(sample_data(tissue.fil)$Patient, patient.df$Patient), 'oral_dis']
+## Remove samples with missing data
+tissue.fil2 <- prune_samples(!(is.na(sample_data(tissue.fil)$Age)), tissue.fil)
+tissue.fil2 <- prune_taxa(taxa_sums(tissue.fil2) >0, tissue.fil2)
+tissue.fil2 ## 120 samples
+
+tissue.median <- median(sample_sums(tissue.fil2)) # 19721
+standf.t <- function(x, t=tissue.median) round(t* (x/sum(x)))
+tissue.prop <- transform_sample_counts(tissue.fil2, standf.t)
+
+## Basic bar graph to plot abundance of phyla
+plot_bar(tissue.prop, fill='Phylum') + geom_bar(aes(color=Phylum, fill=Phylum), stat='identity', position='stack')
+plot_richness(tissue.prop, measures=c("Shannon", "Chao1"), color="sample_type")
+sample_data(tissue.prop)$Shannon <- estimate_richness(tissue.prop, measures=c("Shannon"))$Shannon
+sample_data(tissue.prop)$Chao1 <- estimate_richness(tissue.prop, measures=c("Chao1"))$Chao1
+sample_data(tissue.prop)$InvSimpson <- estimate_richness(tissue.prop, measures=c("InvSimpson"))$InvSimpson
+tissue.df <- as(sample_data(tissue.prop), "data.frame")
+
+## compare the alpha-diversity between different groups and sample types
+tapply(tissue.df$Shannon, tissue.df$sample_type, summary) 
+with(tissue.df, kruskal.test(Shannon ~ sample_type)) ## significant p-value
+anova(lm(Shannon ~ sample_type, tissue.df)) ## signficant different
+TukeyHSD(aov(lm(Shannon ~ sample_type, tissue.df)))
+## only non-tumour has significant higher alpha-diversity compared to polyp
+
+tapply(tissue.df$Chao1, tissue.df$sample_type, summary) ## nontumour seems to have the highest diversity
+with(tissue.df, kruskal.test(Chao1 ~ sample_type)) # significant p-value
+anova(lm(Chao1 ~ sample_type, tissue.df)) # significant
+TukeyHSD(aov(lm(Chao1 ~ sample_type, tissue.df)))
+## nontumour has significant higher richness compared to polyp and biopsy 
+## This may be an artefact of sampling depth 
+
+##### Some basic ordination
+tissue.wunifrac <- phyloseq::distance(tissue.prop, method="wunifrac")
+tissue.bray <- phyloseq::distance(tissue.prop, method="bray")
+tissue.ordw <- ordinate(tissue.prop, 'PCoA', tissue.wunifrac)
+tissue.ordb <- ordinate(tissue.prop, 'PCoA', tissue.bray)
+
+plot_scree(tissue.ordw) + xlim(as.character(seq(1,50))) + coord_cartesian(xlim=c(0,50)) + 
+      xlab("Principal coordinate") + ylab("Proportion of variance")
+plot_ordination(tissue.prop, tissue.ordw, type="samples", color='sample_type') + geom_point(size=1.5) +
+      theme_gray() + scale_color_manual(values=c("lightskyblue",'royalblue3',"lightpink1", "indianred4")) + 
+      xlab("PCoA1 (34.5%)") + ylab("PCoA2 (17.4%)") + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90'))
+
+plot_scree(tissue.ordb) + xlim(as.character(seq(1,50))) + coord_cartesian(xlim=c(0,50)) + 
+      xlab("Principal coordinate") + ylab("Proportion of variance")
+plot_ordination(tissue.prop, tissue.ordb, type="samples", color='sample_type') + geom_point(size=1.5) +
+      theme_gray() + scale_color_manual(values=c("lightskyblue",'royalblue3',"lightpink1", "indianred4")) + 
+      xlab("PCoA1 (16.8%)") + ylab("PCoA2 (8.9%)") + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90'))
+
+### assess if any covariates explaining the variance in PCoA
+tis.wuni.perm <- adonis2(tissue.wunifrac ~ sample_type + Age + sex + BMI + diarrhea_7days + diabetes + HBP + alcohol_active_2y + anatomy, data=tissue.df, by='margin', permutations = 999)
+tis.wuni.perm ## sample_type, age, diabetes, HBP 
+
+tis.wuni.cca <- capscale(tissue.wunifrac ~ sample_type + Age + sex + BMI + diarrhea_7days + diabetes + HBP + alcohol_active_2y + anatomy, data=tissue.df)
+anova(tis.wuni.cca, by="terms", perm=1e4) # sample_type, age, diabetes, HBP 
+anova(tis.wuni.cca, by="margin", perm=1e4) # sample_type, age, diabetes, HBP
+
+## Repeat for Bray distance
+tis.bray.perm <- adonis2(tissue.bray ~ sample_type + Age + sex + BMI + diarrhea_7days + diabetes + HBP + alcohol_active_2y + anatomy, data=tissue.df, by='margin', permutations = 999)
+tis.bray.perm
+
+tis.bray.cca <- capscale(tissue.bray ~ sample_type + Age + sex + BMI + diarrhea_7days + diabetes + HBP + alcohol_active_2y + anatomy, data=tissue.df)
+anova(tis.bray.cca, by="terms", perm=1e4)
+anova(tis.bray.cca, by="margin", perm=1e4) 
+
+## Select variables important in constrained analysis
+mod0 <- capscale(tissue.wunifrac ~ 1, data=tissue.df)
+mod <- step(mod0, scope=formula(tis.wuni.cca), test='perm', direction ='both')
+modb <- step(tis.wuni.cca, scope=list(lower=formula(mod0), upper=formula(tis.wuni.cca)), test='perm', direction='both')
+# Both forward and reverse model of AIC model selection shows that sample_type, age, diabetes and HBP are significant
+```
+
+We next implement the compositional data analysis approach as similar to that applied to salivary microbiome (isometric log-ratio transformation)
+
+```{r}
+### Construct ordination for all samples (129, even for samples without covariates)
+otutab.tis.philr <- cmultRepl(t(otu_table(tissue.fil)), method='GBM', output='p-counts')
+taxtab.tis.philr <- tax_table(tissue.fil)
+tree.tis.philr <- makeNodeLabel(as.phylo(phy_tree(tissue.fil)), method='number', prefix='n')
+
+gp.tis <- philr(t(otutab.tis.philr), tree.tis.philr, part.weights = 'enorm.x.gm.counts', ilr.weights='blw.sqrt')
+gp.tis[1:10,1:10]
+dim(gp.tis)
+
+## Distance based on euclidean space
+gp.tis.dist <- dist(gp.tis, method="euclidean")
+gp.tis.ord <- ordinate(tissue.fil, formula = ~sample_type, method="PCoA", distance = gp.tis.dist)
+plot_scree(gp.tis.ord)
+
+tis_ord.graph <- plot_ordination(tissue.fil, gp.tis.ord, type="samples", color="sample_type") + geom_point(size=1.5)  + 
+      theme_bw() + scale_color_manual(values=c("lightskyblue",'royalblue3',"lightpink1", "indianred4")) + 
+      xlab("PCoA1 (48.8%)") + ylab("PCoA2 (14.1%)") + stat_ellipse(type="t", linetype=1) + 
+      theme(legend.position = "bottom",legend.background = element_rect(color='gray90')) 
+tis_ord.graph ## Figure 1B
+
+## Test if any covariates explaining the distribution
+## We will test this on a gp.tis2 separately, for only samples with covariates.
+otutab.tis2.philr <- cmultRepl(t(otu_table(tissue.fil2)), method='GBM', output='p-counts')
+tree.tis2.philr <- makeNodeLabel(as.phylo(phy_tree(tissue.fil2)), method='number', prefix='n')
+gp.tis2 <- philr(t(otutab.tis2.philr), tree.tis2.philr, part.weights = 'enorm.x.gm.counts', ilr.weights='blw.sqrt')
+gp.tis2.dist <- dist(gp.tis2, method="euclidean")
+
+tis.gp.perm <- adonis2(gp.tis2.dist ~ sample_type + Age + sex + BMI + diarrhea_7days + diabetes + HBP + alcohol_active_2y + anatomy, data=tissue.df, by='margin', permutations = 999)
+tis.gp.perm # only sample_type and diabetes are significant.
+
+tis.gp.rda <- rda(gp.tis2 ~ sample_type + Age + sex + BMI + diarrhea_7days + diabetes + HBP + alcohol_active_2y + anatomy, data=tissue.df)
+anova(tis.gp.rda, by='terms', perm=1e4) ## sample_type, diabetes
+anova(tis.gp.rda, by="margin", perm=1e4) ## sample_type, diabetes
+```
+
+These analyses showed that the gut mucosal microbiome between different groups (cases, controls) are significant different. The status of diabetes also likely contributes to the variation in the microbiome observed. 
+
+Examining whether the mucosal microbiome could be clustered
+
+```{r}
+## Use the PhILR transformed data for clustering
+## prediction strength
+tis.gp.pred <- prediction.strength(gp.tis, Gmin = 2, Gmax = 10, M=50, clustermethod = claraCBI, classification="centroid",cutoff=0.5)
+tis.gp.pred ## optimal number of cluster is 2 (62%) but low prediction strength
+
+## Gap statistic
+gsy = clusGap(t(gp.tis), pam, K.max=8, B=100)
+plot_clusgap(gsy) + scale_x_continuous(breaks=c(seq(0,12,2))) ## indicating two groups 
+## average silhouette width 
+tis.gp.asw <- pamk(gp.tis.dist, krange=2:10, criterion="asw", diss=TRUE, ns=10, critout = TRUE) ## optimal number of clusters is two
+
+ilr.pamclust <- as.factor(pam(x=gp.tis.dist, 2, cluster.only = TRUE, diss=TRUE))
+sample_names(tissue.fil) == names(ilr.pamclust) # all TRUE
+sample_data(tissue.fil)$CST_ilr <- ilr.pamclust
+
+### Assess the accuracy of membership after clustering by using silhuoette widths
+ilr.pamclust.al <- as.array(setNames(as.numeric(sample_data(tissue.fil)$CST_ilr), rownames(sample_data(tissue.fil))))
+silwidths <- silhouette((ilr.pamclust.al), dist=gp.tis.dist)
+rownames(silwidths) <- names(ilr.pamclust)
+plot(silwidths)
+print(silwidths)
+## For samples with si < (-0.2), consider changing group membership
+ilr.pamclust.al["T34"] <- 2
+ilr.pamclust.al["T35"] <- 2
+ilr.pamclust.al["H34"] <- 2
+ilr.pamclust.al["H28"] <- 2
+ilr.pamclust.al["T30"] <- 2
+ilr.pamclust.al["H30"] <- 2
+ilr.pamclust.al["P19"] <- 2
+ilr.pamclust.al["P21"] <- 2
+
+#ilr.pamclust.al["T47"] <- 2 
+#ilr.pamclust.al["H32"] <- 2
+#ilr.pamclust.al["T38"] <- 2
+#ilr.pamclust.al["T39"] <- 2
+
+###
+plot(silhouette(ilr.pamclust.al, dist=gp.tis.dist))
+print(silhouette(ilr.pamclust.al, dist=gp.tis.dist))
+## Better now
+## Assign membership of ilr.pamclust.al
+sample_data(tissue.fil)$CST_ilr <- as.factor(ilr.pamclust.al)
+
+cst.plot <- plot_ordination(tissue.fil, gp.tis.ord, type="samples", color="CST_ilr") + geom_point(size=1.5) + theme_bw() + xlab("PCoA1 (48.8%)") + ylab("PCoA2 (14.1%)") + theme(legend.position = "bottom")
+cst.plot ## Figure S1A
+## separation of clusters along the first PCoA axis 
+#### Examine the membership of the two clusters
+t.test(sample_sums(tissue.fil)~as.factor(ilr.pamclust.al))## NS. Group membership is not determined by library size
+
+tissue.df <- as(sample_data(tissue.fil), 'data.frame')
+fisher.test(table(tissue.df$Group,ilr.pamclust.al)) ## p-value = 0.002. More controls in group 1. Cases are spread equally between the two groups
+table(tissue.df$sample_type, ilr.pamclust.al)
+
+length(which(table(tissue.df$Patient) == 2)) ## 62 pairs of sample (124 samples) from the data
+length(which(rowSums(table(tissue.df$Patient, ilr.pamclust.al) == 2 )==1))
+## 56/62 pairs of patient samples (90.3%) belong to the same CST cluster. 
+
+### Randomforest to identify taxa most differentiating betweewn the two CSTs
+rdf.df <- as.data.frame(gp.tis)
+identical(rownames(rdf.df), names(ilr.pamclust.al)) # TRUE
+rdf.df$CST_ilr <- as.factor(ilr.pamclust.al)
+rdf.rf <- rfsrc(CST_ilr ~., data=rdf.df, ntree=10000, block.size = 50, importance = 'permute')
+print(rdf.rf)
+## Overall OOB is ~ 10.8%. 
+plot.rfsrc(rdf.rf)
+## export VIMP from randomforest object
+class.vimp <- vimp.rfsrc(rdf.rf)
+## VIMP for all 
+sort(class.vimp$importance[,1], decreasing = TRUE)[1:20] ## n20, n15, n17
+## VIMP important for cluster 1
+sort(class.vimp$importance[,2], decreasing = TRUE)[1:20] ## n20, n15, n17, n3, n75
+## VIMP important for cluster 2
+sort(class.vimp$importance[,3], decreasing = TRUE)[1:20] ## n20, n15, n73, n3, 
+## Extract information from tree balance
+info_balance_tissue <- function(node) {
+      bal <- name.balance(tree.tis.philr, taxtab.tis.philr[,-c(7)], node, return.votes=c('up', 'down'))
+      return(bal)
+}
+info_balance_tissue('n17') # Proteobacteria/Actinobacteria 
+info_balance_tissue("n20") # GammaProteobacteria (E. coli/Sutterella)/Campilobacterota+Desulfobacterota
+info_balance_tissue("n15") # Actinobacteria + Proteobacteria/Firmicutes + Fusobacteria 
+info_balance_tissue("n3") # other phylums/Lachnospiraceae
+info_balance_tissue("n73") # E. coli/Morganella
+
+## Visualizing the value of gp.tis in these balance
+gp.tis.subset <- convert_to_long(gp.tis, get_variable(tissue.fil, 'CST_ilr')) %>% filter(coord %in% c('n15', "n17", 'n20', 'n73', 'n3'))
+balance.plot <- ggplot(gp.tis.subset, aes(x=labels, y=value)) + geom_boxplot(fill='lightgrey') + 
+      facet_grid(.~coord, scale='free_x') + 
+      xlab('CST_ILR') + ylab('Balance value') + theme_bw()
+### Use this as supplementary figure
+require(gridExtra)
+grid.arrange(cst.plot, balance.plot, nrow=1, widths =c(0.5, 0.5)) ## Figure S1
+
+## Investigate which covariates could contribute to the differentiation between CST 1 and 2. 
+patient.df2 <- as(sample_data(tumbiop.keep),'data.frame')
+patient.df2 <- patient.df2[!(is.na(patient.df2$Age)),]
+dim(patient.df2)
+table(patient.df2$Group)
+
+rownames(patient.df2) <- patient.df2$Patient 
+#patient.df2 <- patient.df2[patient.df2$Group=='case',]
+## some investigation
+with(patient.df2, t.test(Age ~ CST_ilr)) ## NS
+with(patient.df2, t.test(BMI ~ CST_ilr)) ## NS
+fisher.test(with(patient.df2, table(Group, CST_ilr))) ## borderline significant
+fisher.test(with(patient.df2, table(diabetes, CST_ilr))) ## NS
+fisher.test(with(patient.df2, table(diarrhea_7days, CST_ilr))) # NS
+chisq.test(with(patient.df2, table(HBP, CST_ilr))) # NS 
+chisq.test(with(patient.df2, table(sex, CST_ilr))) ## NS
+chisq.test(with(patient.df2, table(oral_dis, CST_ilr))) # NS
+chisq.test(with(patient.df2, table(alcohol_active_2y, CST_ilr))) # NS
+chisq.test(with(patient.df2, table(alcohol_history, CST_ilr))) #NS 
+```
+
+The gut mucosal microbiome could be split into two clusters, matching separation along the first PCoA. Cluster 1 is more enriched in GammaProteobacteria (E. coli), as cluster 2 is more enriched in Actinobacteria (Collinsella) and Lachnospiraceae. The ratio of Proteobacteria/Actinobacteria is the most different. 
+
+We next plot a heatmap to visualize the relative abundance of most prevalent taxa. We will agglomerate ASVs of the same genus into one for easy summary and visualization
+```{r}
+## First we correct some taxonomic assignment
+tax_table(tissue.fil)[which(tax_table(tissue.fil)[,"Family"] == "Parvimonas"), "Genus"] <- "Parvimonas"
+
+tissue.txglom <- tax_glom(tissue.fil, taxrank = "Genus",NArm = FALSE)
+tissue.txglom.dt <- microbiome::transform(tissue.txglom, transform='compositional')
+tax_table(tissue.txglom.dt)['seq96', 'Genus'] <- 'unc_Lachnospiraceae'
+tissue.core <- core_members(tissue.txglom.dt, detection =1/100, prevalence=15/100)
+length(tissue.core)
+tissue.txglom.dt.fil <- prune_taxa(tissue.core, tissue.txglom.dt)
+summary(sample_sums(tissue.txglom.dt.fil)/sample_sums(tissue.txglom.dt)) 
+## 24 genera summarize a median of 85% data in tissue microbiome
+tax_table(tissue.txglom.dt.fil)[tissue.core,]
+
+## Prepare for heatmap plot 
+## Reorder the sample
+cst1_order <- ilr.pamclust.al[which(ilr.pamclust.al == 1)]
+cst1_order <- cst1_order[c(which(str_match(names(cst1_order),"B") == "B"), which(str_match(names(cst1_order),"P") == "P"),which(str_match(names(cst1_order),"H") == "H"), which(str_match(names(cst1_order),"T") == "T"))]
+cst2_order <- ilr.pamclust.al[which(ilr.pamclust.al == 2)]
+cst2_order <- cst2_order[c(which(str_match(names(cst2_order),"B") == "B"), which(str_match(names(cst2_order),"P") == "P"),which(str_match(names(cst2_order),"H") == "H"), which(str_match(names(cst2_order),"T") == "T"))]
+
+s.order <- names(c(cst1_order, cst2_order))
+s.order
+tax_table(tissue.txglom.dt.fil)['seq1','Genus'] <- 'Escherichia'
+tax_table(tissue.txglom.dt.fil)['seq29', "Genus"] <- 'Ruminococcus torques'
+tax_table(tissue.txglom.dt.fil)['seq54', "Genus"] <- "Ruminococcus gnavus"
+
+M.taxa.order <- c("Escherichia", "Klebsiella", "Bacteroides", "Parabacteroides", "Prevotella", "Alloprevotella", 
+                  "Collinsella", "Sutterella", "Megamonas", "Phascolarctobacterium", "Ruminococcus torques", "Ruminococcus gnavus",
+                  "Bifidobacterium", "Faecalibacterium", "Megasphaera", "Blautia", "unc_Lachnospiraceae", "Dorea", 
+                  "Fusobacterium", "Streptococcus", "Leptotrichia","Gemella", "Parvimonas", "Peptostreptococcus")
+new.taxa.order <- rev(taxa_names(tissue.txglom.dt.fil)[match(M.taxa.order, tax_table(tissue.txglom.dt.fil)[,'Genus'])])
+
+### Plotting
+library("wesanderson")
+pal <- wes_palette("Zissou1", 5, type='discrete')
+taxa.col <- rev(c(rep('red3',2), rep("blue3",4), 'gold4', 'red3', rep('forestgreen',4), 'gold4', rep('forestgreen',5),
+                  'darkviolet', 'forestgreen', 'darkviolet', rep('forestgreen',3)))
+
+plot_heatmap.2 <- function(ps, sample.label=NULL, taxa.label=NULL, ...) {
+      hm <- plot_heatmap(ps, taxa.label="Genus", sample.order= s.order, taxa.order = new.taxa.order)
+      hm <- hm + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+                       axis.text.y=element_text(size=10, face='italic', colour = taxa.col))
+      #low = "#190a0a"; high = "#ff6666"; trans = scales::log_trans(4); na.value = "black" # From plot_heatmap defaults
+      new_gradient <- scale_fill_gradientn(colours=c('gray10',pal),
+                                           values=c(0,0.01, 0.15, 0.3, 0.6, 1), na.value = NA, guide="colourbar", name="Relative\nproportion")
+      hm <- hm + theme(plot.margin=unit(c(0,0.5,0.5,0.5),"lines"))
+      hm <- hm + new_gradient
+      hm <- hm + geom_tile(colour='black') #
+      hm <- hm + ylab("Taxa")
+      hm$layers <- hm$layers[2] #
+      return(hm)
+}
+
+hm <- plot_heatmap.2(tissue.txglom.dt.fil, taxa.label = "Genus") +
+      theme(legend.position = 'right')
+hm
+```
+
+Next we annotate the sample type and CST information on the heatmap
+
+```{r}
+make_hcb <- function(data, var, name = NULL, fillScale = NULL, ...) {
+      hcb <- ggplot(data=data, aes_string(x="index", y=1, fill=var)) + 
+            geom_raster() +
+            scale_y_continuous(expand=c(0,0), breaks=1, labels=name) + 
+            scale_x_continuous(expand=c(0,0)) +
+            xlab(NULL) + ylab(NULL) +
+            theme(axis.title=element_blank(), axis.ticks=element_blank()) +
+            theme(axis.text.x=element_blank()) +
+            theme(axis.text.y=element_text(size=12, face="bold")) +
+            theme(plot.margin=unit(c(0,0,0,0),"lines")) +
+            theme(axis.text=element_text(margin=unit(0,'null'))) +
+            guides(fill=F)
+      if(!is.null(fillScale)) hcb <- hcb + fillScale
+      return(hcb)
+}
+tissue.df2 <- as(sample_data(tissue.txglom.dt.fil), 'data.frame')
+tissue.df2 <- tissue.df2[s.order, ]
+tissue.df2$index <- seq(1, nsamples(tissue.txglom.dt.fil))
+
+cst_hcb <- make_hcb(tissue.df2, 'CST_ilr', name='CST', fillScale = scale_fill_manual(values=c("gray80", 'gray40')))
+cst_hcb <- cst_hcb + annotate('text', x=tapply(tissue.df2$index, tissue.df2[,'CST_ilr', drop=T], mean), y =1, label=levels(tissue.df2$CST), size=6)
+cst_hcb
+
+sample_hcb <- make_hcb(tissue.df2, 'sample_type', name='Sample', fillScale = scale_fill_manual(values=c('biopsy'='lightskyblue', 'nontumour'='lightpink1','polyp' = 'royalblue3', 'tumour'='indianred4')))
+sample_hcb
+
+mush <- function(hmap, hcbs) {
+      require(gtable)
+      require(grid)
+      require(gridExtra)
+      cbgs <- lapply(hcbs, ggplotGrob)
+      hmg <- ggplotGrob(hmap)
+      
+      # Make sure both plots have the same dimensions in grob objects
+      for (i in seq_along(cbgs)) {
+            cbgs[[i]] <- gtable_add_cols(cbgs[[i]], widths=unit(1,"null"), pos=8)
+            cbgs[[i]] <- gtable_add_cols(cbgs[[i]], widths=unit(1,"null"), pos=8)
+      }
+      ## Make sure that both plots have the same widths
+      cbWidths <- lapply(cbgs, function(x) x$widths)
+      maxWidth <- do.call(unit.pmax, cbWidths)
+      maxWidth <- unit.pmax(hmg$widths, maxWidth)
+      ## replace widths in each grob object with maxWidth
+      hmg$widths <- maxWidth
+      for (i in seq_along(cbgs)){
+            cbgs[[i]]$widths <- maxWidth
+      }
+      heights <- unit.c(unit(rep(1,length(cbgs)), "lines"), unit(1, "null"))
+      rval <- do.call(arrangeGrob, args = c(cbgs, list(hmg), ncol=1, heights=list(heights)))
+      return(rval)
+}
+
+big.hm <- mush(hm, list(sample_hcb, cst_hcb))
+vis <- grid.arrange(big.hm) ## Figure 1D
+```
+
+We next investigate the beta-diversity among the samples, using the transformed philr values
+
+```{r}
+## Pairwise beta-diversity within and between patients
+tis.ilr.mat <- as.matrix(gp.tis.dist)
+pID <- tissue.df[,c("Group", "Patient")]
+pID$ID <- rownames(pID)
+pID <- pID[match(rownames(tis.ilr.mat), pID$ID),]
+pNO <- levels(as.factor(pID$Patient))
+patientid.notpaired <- names(which(table(pID$Patient) == 1)) ## ID that are not paired
+pNO <- pNO[!(pNO %in% patientid.notpaired)]
+
+for (i in 1:length(pNO)) {print(length(pID[which(pID$Patient == pNO[i]),1]))} ## all have 2 samples in one pair.
+Y <- matrix(rep(NA,length(pNO)),nrow=length(pNO), ncol=1)
+for (i in 1:length(pNO)){
+      coord <- combn(pID[which(pID$Patient==pNO[i]),3],2)
+      Y[i,1] <- tis.ilr.mat[coord[1], coord[2]]
+      print(paste('Successfully for patient ID ', i, collapse=""))
+}
+Y <- as.data.frame(Y)
+rownames(Y) <- pNO
+colnames(Y) <- "distance"
+
+Y$Group <- pID[match(rownames(Y), pID$Patient),'Group']
+ggplot(Y, aes(Group, distance)) + geom_boxplot()
+summary(Y[Y$Group=='case','distance']) ## median of pairwise distance in the CRC patients (tumour and healthy tissue) is 4.72
+summary(Y[Y$Group=='control','distance']) ## median of pairwise distance in the control (biopsy and polyp) is 5.7
+wilcox.test(distance ~ Group, data=Y) ## not significant difference
+
+Y$tis1 <- rownames(tissue.df[match(rownames(Y), tissue.df$Patient),])
+Y$tis2 <- Y$tis1
+Y$tis2 <- str_replace(str_replace(Y$tis2, "H", "T"), "B", "P")
+tissue_sample_sums <- sample_sums(tissue.fil)
+Y$tis1_readsum <- tissue_sample_sums[match(Y$tis1, names(tissue_sample_sums))]
+Y$tis2_readsum <- tissue_sample_sums[match(Y$tis2, names(tissue_sample_sums))]
+Y$min_readsum <- apply(Y[,c("tis1_readsum", "tis2_readsum")],1, min)
+cor(Y$distance, Y$min_readsum, method = "spearman") ## some moderate association 
+ggplot(Y, aes(min_readsum, distance)) + geom_point() + geom_smooth()
+## There is a weak trend of linear relationship between the sequencing coverage for each sample and the difference in beta-diversity
+
+## Pairwise difference for samples belonging to the same sample_type
+tumour.mat.id <- which(colnames(tis.ilr.mat) %in% Y[Y$Group == "case", 'tis2'])
+tumour.distmat <- tis.ilr.mat[tumour.mat.id, tumour.mat.id]
+tumour.pwdist <- tumour.distmat[which(lower.tri(tumour.distmat, diag=FALSE))]
+summary(tumour.pwdist) ## median pairwise difference between non-paired tumour samples is 12.5
+
+nontm.mat.id <- which(colnames(tis.ilr.mat) %in% Y[Y$Group == 'case', 'tis1'])
+nontm.distmat <- tis.ilr.mat[nontm.mat.id, nontm.mat.id]
+nontm.pwdist <- nontm.distmat[which(lower.tri(nontm.distmat, diag=FALSE))]
+summary(nontm.pwdist) ## median pairwise difference between non-paired healthy samples is 12.08
+
+biop.mat.id <- which(str_detect(colnames(tis.ilr.mat),'B'))
+biop.distmat <- tis.ilr.mat[biop.mat.id,biop.mat.id]
+biop.pwdist <- biop.distmat[which(lower.tri(biop.distmat, diag=FALSE))]
+summary(biop.pwdist) ## median pairwise difference between non-paired biopsy samples is 11.506
+
+polyp.mat.id <- which(str_detect(colnames(tis.ilr.mat), "P"))
+polyp.distmat <- tis.ilr.mat[polyp.mat.id, polyp.mat.id]
+polyp.pwdist <- polyp.distmat[which(lower.tri(polyp.distmat, diag=FALSE))]
+summary(polyp.pwdist) ## median pairwise difference between non-paired polyp samples is 11.574
+
+## pairwise difference for salivary microbiome
+sal.ilr.mat <- as.matrix(gp.sal.dist)
+sal_conid <- which(str_match(rownames(sal.ilr.mat), "S0") == "S0")
+salcon.distmat <- sal.ilr.mat[sal_conid, sal_conid]
+salcon.pwdist <- salcon.distmat[which(lower.tri(salcon.distmat, diag = FALSE))]
+summary(salcon.pwdist) ## median is 32 (quite high)
+
+sal_caseid <- which(str_match(rownames(sal.ilr.mat), "S1") == "S1")
+salcase.distmat <- sal.ilr.mat[sal_caseid, sal_caseid]
+salcase.pwdist <- salcase.distmat[which(lower.tri(salcase.distmat, diag = FALSE))]
+summary(salcase.pwdist) ## median is 36.53 (quite high)
+
+wilcox.test(salcon.pwdist, salcase.pwdist) ## significant p-value < 0.05
+t.test(sample_sums(saliva.fil) ~ sample_data(saliva.fil)$Group) ## NS, while no difference in library size.
+
+########### Drawing into one plot ##############
+wcon.dist <- Y[Y$Group =='control','distance']
+wcase.dist <- Y[Y$Group=='case', 'distance']
+H <- list(wcon.dist, wcase.dist, biop.pwdist, polyp.pwdist, nontm.pwdist, tumour.pwdist)
+Hm <- melt(H)
+colnames(Hm) <- c('value', 'comparison')
+table(Hm$comparison)
+Hm$comparison <- str_replace(Hm$comparison, "1", "within_control")
+Hm$comparison <- str_replace(Hm$comparison, "2", "within_case")
+Hm$comparison <- str_replace(Hm$comparison, "3", "between_biopsy")
+Hm$comparison <- str_replace(Hm$comparison, "4", "between_polyp")
+Hm$comparison <- str_replace(Hm$comparison, "5", "between_nontumour")
+Hm$comparison <- str_replace(Hm$comparison, "6", "between_tumour")
+Hm$comparison <- factor(Hm$comparison, levels = c('within_control', 'within_case', 'between_biopsy', 'between_polyp','between_nontumour', 'between_tumour'))
+
+pwdist.graph <- ggplot(Hm, aes(comparison, value, fill=comparison)) + geom_boxplot() + 
+      theme_bw() + 
+      scale_fill_manual(values=c("gray80", "gray60","lightskyblue",'royalblue3',"lightpink1","indianred4")) + 
+      theme(axis.text.x=element_text(angle=45, size=9, vjust=1, hjust=1 ), legend.position = 'none') + 
+      xlab("") + ylab("Beta-diversity")
+pwdist.graph ## Figure 1C
+## Anova and TukeyHSD to see signficant difference among the comparisons
+TukeyHSD(aov(lm(value ~ comparison, Hm)))
+```
+
+Now we combine ordination figures, pairwise distance and heatmap 
+
+```{r}
+library(egg)
+library(gridExtra)
+yy <- egg::ggarrange(sal_ord.graph, tis_ord.graph, pwdist.graph, widths = c(0.33, 0.33, 0.34))
+yy
+fig1 <- grid.arrange(yy, big.hm, nrow=2, heights =c(0.4, 0.6)) ## Figure 1
+ggsave(fig1, filename="./ordination_relabund_heatmap.pdf", height=8.5, width=11, units='in', dpi=600)
+```
+=====================================================
+Differential abundance analyses
+Identify taxa significant abundant between these comparisons
+1/ Paired tumour and nontumour (CRC patients)
+2/ Paired biopsy and polyp (control)
+3/ Tumour and biopsy (case vs control)
+4/ Cancer stage III-IV and stage II 
+
+1/ Paired tumour and nontumour
+```{r}
+### DESeq2 to compare paired tumour and nontumour tissue 
+tissuecase.deseq <- prune_samples(sample_data(tissue.fil)$Group == 'case', tissue.fil)
+tissuecase.deseq <- prune_taxa(taxa_sums(tissuecase.deseq) > 0, tissuecase.deseq)
+table(rowSums(abundances(tissuecase.deseq) > 5) >= 4)
+tissuecase.keep <- prune_taxa(rowSums(abundances(tissuecase.deseq) > 5) > 4, tissuecase.deseq)
+summary(sample_sums(tissuecase.keep)/sample_sums(tissuecase.deseq)) ## median of 93% retention
+
+length(which(abundances(tissuecase.keep) ==0))/(nsamples(tissuecase.keep)*ntaxa(tissuecase.keep)) ## 80% of cells are zero. This data is extremely sparse even after filtering. 
+## Consider applying the zero-inflated NB model 
+sample_data(tissuecase.keep)$sample_type ## nontumour is reference level
+ds_crc_zinbwave <- phyloseq_to_deseq2(tissuecase.keep, design = ~0+Patient + sample_type) ## design without intercept
+ds_crc_zinbwave <- zinbwave(ds_crc_zinbwave, epsilon=1e10, verbose=TRUE, K=0, observationalWeights=TRUE,
+                            BPPARAM=BiocParallel::SerialParam(), X="~1") 
+assay(ds_crc_zinbwave, "weights")[1:5, 1:5]
+dds_crc_zinb <- DESeqDataSet(ds_crc_zinbwave, design=~0+Patient + sample_type)
+dds_crc_zinb <- estimateSizeFactors(dds_crc_zinb, type="poscounts")
+## Use size factor normalization by poscounts
+
+dds_crc_zinb <- DESeq(dds_crc_zinb, test="LRT", reduced=~Patient, sfType="poscounts", minmu=0.5,
+                      minReplicatesForReplace = 7, fitType = "local", betaPrior = FALSE, useT=TRUE)
+## Observe dispersion plot
+DESeq2::plotMA(dds_crc_zinb)
+plotDispEsts(dds_crc_zinb) ## better fit compared to poscount sizefactors without zero-inflation 
+## When the counts are very small (for some taxa), it becomes very difficult to accurately estimate the dispersion
+## Refitting the dispersion by removing low abundance taxa
+## This will filter taxa solely for the dispersion trend estimation, but still use a larger dataset for the rest of the analysis
+keepForDispTrend <- rowSums(DESeq2::counts(dds_crc_zinb) >=10)>=8
+dds2_crc <- estimateDispersionsFit(dds_crc_zinb[keepForDispTrend,])
+plotDispEsts(dds2_crc) ## remove dispersion fit for very low counts
+
+dispersionFunction(dds_crc_zinb) <- dispersionFunction(dds2_crc)
+dds_crc_zinb <- estimateDispersionsMAP(dds_crc_zinb)
+dds_crc_zinb <- nbinomLRT(dds_crc_zinb, reduced=~Patient, minmu=0.5)
+
+## Extract results from DESeq2 analysis
+resultsNames(dds_crc_zinb)
+
+rs_crc_shrink <- output_deseq2(physeq = tissuecase.deseq,ds = dds_crc_zinb, contrast="sample_typetumour", alpha=0.05, coef=44, testtype="ashr")
+
+up.tumour <- rs_crc_shrink[rs_crc_shrink$log2FoldChange > 0 & rs_crc_shrink$baseMean > 20, c(1,2,5,8)]
+up.tumour
+down.tumour <- rs_crc_shrink[rs_crc_shrink$log2FoldChange < 0 & rs_crc_shrink$baseMean > 20, c(1,2,5,8)]
+down.tumour
+
+##########################
+## Apply a different approach 
+### ANCOMBC: compositional data analysis approach with correction for sampling bias
+tissuecase.ancom <- tissuecase.deseq
+otu_table(tissuecase.ancom) <- otu_table(abundances(tissuecase.ancom),taxa_are_rows = TRUE)
+
+case.ancom.out <- ancombc(phyloseq = tissuecase.ancom, formula="Patient + sample_type", p_adj_method = "holm", zero_cut=0.90, lib_cut=1000, group = "sample_type", struc_zero=TRUE, neg_lb=TRUE, tol=1e-5, max_iter=300, conserve=TRUE, alpha=0.05, global=FALSE)
+
+## Primary results
+case.ancom.res <- case.ancom.out$res
+length(which(case.ancom.res$q_val[,'sample_typetumour'] < 0.05)) ## 52 taxa have adjusted pvalue < 0.05
+length(which(case.ancom.res$diff_abn[,'sample_typetumour'] ==TRUE)) ## 52 taxa are differential abundant
+
+case.ancom.rs <- output_ancombc(tissuecase.ancom, ancom.out = case.ancom.out, group="sample_typetumour")
+
+ancom.up.tumour <- case.ancom.rs[case.ancom.rs$test_stat >= 1 & case.ancom.rs$coeff> 0,]
+
+ancom.down.tumour <-case.ancom.rs[case.ancom.rs$test_stat < (-1) & case.ancom.rs$coeff < (0),]
+
+## Consistent results output from both DESeq2 and ANCOMBC
+up.tumour.cons <- intersect(rownames(ancom.up.tumour), rownames(up.tumour))
+up.tumour[up.tumour.cons,] ## 11 taxa 
+
+down.tumour.cons <- intersect(rownames(ancom.down.tumour), rownames(down.tumour))
+down.tumour[down.tumour.cons,] ## only 5 taxa
+
+## Plotting for visualization
+## Use ANCOMBC results table for consistent plotting
+diff.tumour <- rbind(ancom.up.tumour[up.tumour.cons,], ancom.down.tumour[down.tumour.cons,])
+diff.tumour['seq227', 'Species'] <- "Hungatella"
+diff.tumour['seq67', "Species"] <- "Campylobacter rectus"
+diff.tumour['seq40', "Species"] <- "Selenomonas sputigena"
+diff.tumour['seq46', "Species"] <- "Fusobacterium nucleatum"
+diff.tumour['seq13', "Species"] <- "Leptotrichia "
+diff.tumour['seq3', "Species"] <- "Collinsella aerofaciens"
+diff.tumour['seq58', "Species"] <- "Blautia"
+diff.tumour['seq14', "Species"] <- "Bacteroides vulgatus"
+diff.tumour["seq261", "Species"] <- "Bacteroides nordii"
+diff.tumour["seq240", "Species"] <- "Osillibacter ruminantium"
+diff.tumour["seq88", "Species"] <- "Streptococcus sanguinis" # oral (100% to HOMD)
+diff.tumour["seq15", "Species"] <- "Gemella" # oral
+diff.tumour["seq210", "Species"] <- "Lachnoclostridium"
+diff.tumour["seq61", "Species"] <- "Fusobacterium"
+diff.tumour["seq157", "Species"] <- "Dorea formicigenerans"
+diff.tumour["seq126", "Species"] <- "Parabacteroides merdae"
+
+## which one is oral
+diff.tumour$type <- c(0,0,1,0,1,1,1,1,1,0,1,0,0,0,0,0)
+## Order the seq based on log2foldChange
+diff.tumour <- diff.tumour[order(diff.tumour$log2fc, decreasing=TRUE),]
+species.level <- diff.tumour[order(diff.tumour$log2fc, decreasing=TRUE), "Species"]
+diff.tumour$Species <- factor(diff.tumour$Species, levels=unique(species.level))
+
+## Set margin
+par(mar=c(0,0,0,0))
+par(oma=c(0,0,0,0))
+diffcrc.graph <- ggplot(diff.tumour, aes(Species, log2fc, fill=factor(type))) + geom_bar(stat="identity") + coord_flip() +
+      ylab("(paired tumour/non-tumour)") + xlab("Species") + theme_bw() + 
+      theme(axis.text.x=element_text(angle=0, size=12, vjust=1, hjust=1 ), legend.position = 'none') + 
+      scale_fill_manual(values=c("gray9", "lightcoral"), labels=c("no", "yes"), guide=guide_legend(title="Oral microbiome", label.position="bottom"))
+diffcrc.graph ## Figure 2A
+```
+
+2/ Paired biopsy and polyp
+
+```{r}
+con.deseq <- prune_samples(sample_data(tissue.fil)$Group == 'control', tissue.fil)
+con.deseq <- prune_taxa(taxa_sums(con.deseq) > 0, con.deseq)
+table(str_extract(sample_names(con.deseq), "[0-9]+"))
+# Patient 12, 15, 2, 29 and 3 will be removed since they are not paired
+con.deseq <- prune_samples(!(sample_names(con.deseq) %in% c("B12", "B15", "B2", "B3", "B29")), con.deseq)
+con.deseq <- prune_taxa(taxa_sums(con.deseq) >0, con.deseq)
+con.deseq # 19 pairs of controls for comparison
+
+table(rowSums(abundances(con.deseq) > 5) > 2)
+con.keep <- prune_taxa(rowSums(abundances(con.deseq) > 5) > 2, con.deseq)
+summary(sample_sums(con.keep)/sample_sums(con.deseq)) ## median of 96% retention
+
+length(which(abundances(con.keep) ==0))/(nsamples(con.keep)*ntaxa(con.keep)) ## 78% of cells are zero. Data is extremely sparse
+sample_data(con.keep)$sample_type ## biopsy is reference level
+
+## Consider applying the zero-inflated NB model 
+
+ds_con_zinbwave <- phyloseq_to_deseq2(con.keep, design = ~0+Patient + sample_type) ## design without intercept
+ds_con_zinbwave <- zinbwave(ds_con_zinbwave, epsilon=1e10, verbose=TRUE, K=0, observationalWeights=TRUE,
+                            BPPARAM=BiocParallel::SerialParam(), X="~1") 
+assay(ds_con_zinbwave, "weights")[1:5, 1:5]
+dds_con_zinb <- DESeqDataSet(ds_con_zinbwave, design=~0+Patient + sample_type)
+dds_con_zinb <- estimateSizeFactors(dds_con_zinb, type="poscounts")
+
+dds_con_zinb <- DESeq(dds_con_zinb, test="LRT", reduced=~Patient, sfType="poscounts", minmu=0.5,
+                      minReplicatesForReplace = 7, fitType = "local", betaPrior = FALSE, useT=TRUE)
+## Observe dispersion plot
+DESeq2::plotMA(dds_con_zinb)
+plotDispEsts(dds_con_zinb) ## dispersion trend match well
+
+resultsNames(dds_con_zinb)
+rs_con_shrink <- output_deseq2(physeq=con.deseq, ds = dds_con_zinb, contrast = "sample_typepolyp",alpha = 0.05,coef = 20, testtype = "ashr")
+rs_con_shrink ## seq76 (Faecalibacterium), seq95 and seq30 (Prevotella) are less abundant in polyp
+
+## Apply ANCOMBC to paired control samples
+con.ancom <- con.deseq
+otu_table(con.ancom) <- otu_table(abundances(con.ancom),taxa_are_rows = TRUE)
+con.ancom.out <- ancombc(phyloseq = con.ancom, formula="Patient + sample_type", p_adj_method = "holm", zero_cut=0.90, lib_cut=1000, group = "sample_type", struc_zero=TRUE, neg_lb=FALSE, tol=1e-5, max_iter=300, conserve=FALSE, alpha=0.05)
+
+## Primary results from paired control comparison
+con.ancom.res <- con.ancom.out$res
+length(which(con.ancom.res$q_val[,'sample_typepolyp'] < 0.05)) ## 5 taxa have adjusted pvalue < 0.05
+length(which(con.ancom.res$diff_abn[,'sample_typepolyp'] ==TRUE))
+
+con.ancom.rs <- output_ancombc(physeq=con.ancom, ancom.out=con.ancom.out, group="sample_typepolyp")
+
+con.ancom.rs
+
+## Consistent results between DESeq2 and ANCOMBC only showed seq76 (Faecalibacterium) is significantly reduced in polyps. 
+rs_con_shrink["seq76",]
+```
+
+3/ Compare tumour and biopsies microbiome
+
+```{r}
+tumbiop.ps <- prune_samples(sample_data(tissue.fil)$sample_type == "tumour" | 
+                                  sample_data(tissue.fil)$sample_type =="biopsy", tissue.fil)
+tumbiop.ps <- prune_taxa(taxa_sums(tumbiop.ps) > 0, tumbiop.ps)
+
+tumbiop.keep <- prune_taxa(rowSums(abundances(tumbiop.ps) > 5) > 4, tumbiop.ps)
+tumbiop.keep
+summary(sample_sums(tumbiop.keep)/sample_sums(tumbiop.ps)) ## median of 90% retention
+
+length(which(abundances(tumbiop.keep) ==0))/(nsamples(tumbiop.keep)*ntaxa(tumbiop.keep)) ## 77% of cells are zero. Data is extremely sparse
+sample_data(tumbiop.keep)$sample_type ## biopsy is the reference level
+## 
+ds_tis <-  phyloseq_to_deseq2(tumbiop.keep, design =~sample_type)
+ds_tis <- estimateSizeFactors(ds_tis, type="poscounts") 
+## Don't apply the zero-inflated model in case that the two groups has clear differences (presence/absence) dependent on actual zero counts
+
+ds_tis <- DESeq(ds_tis, test="Wald", minmu=0.5,
+                      minReplicatesForReplace = 7, fitType = "local", betaPrior = FALSE, useT=TRUE)
+
+## Observe dispersion plot
+DESeq2::plotMA(ds_tis)
+plotDispEsts(ds_tis) 
+
+resultsNames(ds_tis)
+rs_tis_shrink <- output_deseq2(physeq=tumbiop.keep,ds = ds_tis,contrast="sample_type_tumour_vs_biopsy", alpha=0.05,coef = 2, testtype="apeglm")
+
+uptum.dsrs <- rs_tis_shrink[rs_tis_shrink$log2FoldChange > 0 & rs_tis_shrink$baseMean > 20, c(1,2,5,8)]
+uptum.dsrs ## F. nucleatum, Selenomonas, Leptotrichia, etc. 
+rs_tis_shrink[rs_tis_shrink$log2FoldChange < 0 & rs_tis_shrink$baseMean > 20, c(1,2,5,8)] ## seq135, Fusobacterium mortiferum
+
+### Let's try ancombc
+tumbiop.ancom <- tumbiop.ps
+otu_table(tumbiop.ancom) <- otu_table(abundances(tumbiop.ancom),taxa_are_rows = TRUE)
+tumbiop.ancom.out <- ancombc(phyloseq = tumbiop.ancom, formula="sample_type", p_adj_method = "holm", zero_cut=0.90, lib_cut=1000, group = "sample_type", struc_zero=TRUE, neg_lb=TRUE, tol=1e-5, max_iter=300, conserve=TRUE, alpha=0.05)
+
+## Primary results from paired control comparison
+tumbiop.ancom.res <- tumbiop.ancom.out$res
+length(which(tumbiop.ancom.res$q_val[,'sample_typetumour'] < 0.05)) ## 93 taxa have adjusted pvalue < 0.05
+length(which(tumbiop.ancom.res$diff_abn[,'sample_typetumour'] ==TRUE))
+
+tumbiop.ancom.rs <- output_ancombc(physeq = tumbiop.ancom,ancom.out = tumbiop.ancom.out,group = "sample_typetumour")
+uptum.ancom <- tumbiop.ancom.rs[which(tumbiop.ancom.rs$test_stat > 1 & tumbiop.ancom.rs$coeff > 0),] ## Gemella, Peptostreptococcus, Fusobacterium
+upbiops.ancom <- tumbiop.ancom.rs[which(tumbiop.ancom.rs$test_stat < (-1) & tumbiop.ancom.rs$coeff < 0),] ## F. mortiferum (seq8), seq96 (unc_Lachno)
+
+uptum.ancom
+upbiops.ancom
+
+## Try out corncob 
+tumbiop.keep
+tumbiop.corncob <- differentialTest(formula=~sample_type, phi.formula=~1, formula_null = ~1, phi.formula_null = ~1,
+                                    data=tumbiop.keep, test="LRT", boot=FALSE, fdr_cutoff=0.05, fdr="BH", taxa_are_rows=FALSE)
+plot(tumbiop.corncob)
+tumbiop.corncob$significant_taxa
+tumbiop.corncob$discriminant_taxa_DA
+
+## Consistent results between DESeq2, ancombc, corncob: 
+# overabundant in tumour microbiomes:
+intersect(rownames(uptum.dsrs), rownames(uptum.ancom)) # seq15, seq49, seq46, seq13, seq67, seq40
+intersect(rownames(uptum.dsrs), tumbiop.corncob$significant_taxa) # seq15, seq49
+intersect(rownames(upbiops.ancom), tumbiop.corncob$significant_taxa) # seq96, seq258, seq8, seq698
+
+## Use log2foldchange output from ancombc
+diff.tumbiop <- rbind(uptum.ancom, upbiops.ancom)
+diff.tumbiop <- diff.tumbiop[c("seq15", "seq49", "seq46", "seq13", "seq67", "seq40", "seq96", "seq258", "seq8"), ]
+diff.tumbiop["seq15", "Species"] <- "Gemella"
+diff.tumbiop["seq49", "Species"] <- "Peptostreptococcus stomatis"
+diff.tumbiop["seq46", "Species"] <- "Fusobacterium nucleatum"
+diff.tumbiop["seq13", "Species"] <- "Leptotrichia"
+diff.tumbiop['seq67', "Species"] <- "Campylobacter rectus"
+diff.tumbiop['seq40', "Species"] <- "Selenomonas sputigena"
+diff.tumbiop["seq96", "Species"] <- "unc_Lachnospiraceae"
+diff.tumbiop["seq258", "Species"] <- "Sutterella"
+diff.tumbiop["seq8", "Species"] <- "Fusobacterium mortiferum"
+
+## which one is oral
+diff.tumbiop$type <- c(1,1,1,1,1,1,0,0,0)
+## Order the seq based on log2foldChange
+diff.tumbiop <- diff.tumbiop[order(diff.tumbiop$log2fc, decreasing=TRUE),]
+species.level <- diff.tumbiop[order(diff.tumbiop$log2fc, decreasing=TRUE), "Species"]
+diff.tumbiop$Species <- factor(diff.tumbiop$Species, levels=unique(species.level))
+
+## Set margin
+par(mar=c(0,0,0,0))
+par(oma=c(0,0,0,0))
+difftumbiop.graph <- ggplot(diff.tumbiop, aes(Species, log2fc, fill=factor(type))) + geom_bar(stat="identity") + coord_flip() +
+      ylab("(tumour/biopsy)\nlog2FoldChange") + theme_bw() + 
+      theme(axis.text.x=element_text(angle=0, size=12, vjust=1, hjust=1 ), legend.position = 'bottom') + 
+      scale_fill_manual(values=c("gray9", "lightcoral"), labels=c("no", "yes"), guide=guide_legend(title="Oral microbiome", label.position="bottom"))
+difftumbiop.graph # Figure 2A
+
+```
+
+4/ Between cancer stages (only in tumour samples first)
+
+```{r}
+## Try ANCOMBC first
+tissuecase.deseq
+sample_data(tissuecase.deseq)$C_stage_short <- NA
+stageII <- which(sample_data(tissuecase.deseq)$Cancer_stage %in% c("IIA", "IIB"))
+stageIII <- which(sample_data(tissuecase.deseq)$Cancer_stage %in% c("IIIA", "IIIB", "IIIC", "IV"))
+sample_data(tissuecase.deseq)[stageII, "C_stage_short"] <- "II"
+sample_data(tissuecase.deseq)[stageIII, "C_stage_short"] <- "IIIandIV"
+sample_data(tissuecase.deseq)$C_stage_short <- factor(sample_data(tissuecase.deseq)$C_stage_short)
+Cstage.deseq <- prune_samples(!(is.na(sample_data(tissuecase.deseq)$C_stage_short)), tissuecase.deseq)
+Cstage.deseq <- prune_samples(sample_data(Cstage.deseq)$sample_type == "tumour", Cstage.deseq)
+Cstage.deseq <- prune_taxa(taxa_sums(Cstage.deseq)> 0, Cstage.deseq)
+Cstage.deseq
+
+Cstage.ancom <- Cstage.deseq
+otu_table(Cstage.ancom) <- otu_table(abundances(Cstage.ancom),taxa_are_rows = TRUE)
+stage.ancom.out <- ancombc(phyloseq=Cstage.ancom, formula="C_stage_short", p_adj_method = "BH", zero_cut = 0.9, lib_cut=1000, group="C_stage_short", struc_zero=TRUE, neg_lb=TRUE, tol=1e-5, max_iter=300, conserve=FALSE, alpha=0.05)
+
+stage.ancom.res <- stage.ancom.out$res
+length(which(stage.ancom.res$q_val[,'C_stage_shortIIIandIV'] < 0.05)) ## 70 taxa have adjusted pvalue < 0.05
+length(which(stage.ancom.res$diff_abn[,'C_stage_shortIIIandIV'] ==TRUE)) ## 70 taxa are potentially differential abundant
+
+stage.ancom.rs <- output_ancombc(physeq=Cstage.ancom,ancom.out = stage.ancom.out,group="C_stage_shortIIIandIV")
+upstage3.ancom <- stage.ancom.rs[stage.ancom.rs$test_stat > 0 & stage.ancom.rs$log2fc > 0,]
+upstage2.ancom <- stage.ancom.rs[stage.ancom.rs$test_stat < 0 & stage.ancom.rs$log2fc < 0 ,]
+
+## Try DESeq2 
+Cstage.deseq
+Cstage.keep <- prune_taxa(rowSums(abundances(Cstage.deseq)> 0) > 2, Cstage.deseq)
+summary(sample_sums(Cstage.keep)/sample_sums(Cstage.deseq)) ## mean 90% of sample_sums retention
+Cstage.keep
+sample_data(Cstage.keep)$C_stage_short
+fisher.test(table(sample_data(Cstage.keep)$CST_ilr, sample_data(Cstage.keep)$C_stage_short)) ## NS
+length(which(abundances(Cstage.keep) == 0))/(ntaxa(Cstage.keep)*nsamples(Cstage.keep)) ## 80% of cells are zero, sparse.
+
+### Apply the zero-inflated model 
+ds.crcstage.zinb <- phyloseq_to_deseq2(Cstage.keep, design = ~C_stage_short)
+ds.crcstage.zinb <- zinbwave(ds.crcstage.zinb, epsilon=1e10, verbose=TRUE, K=0, observationalWeights=TRUE, BPPARAM=BiocParallel::SerialParam(), X="~1")
+dds_stage_zinb <- DESeqDataSet(ds.crcstage.zinb, design = ~C_stage_short)
+ds.crcstage <- dds_stage_zinb
+ds.crcstage <- estimateSizeFactors(ds.crcstage, type="poscount")
+
+ds.crcstage <- DESeq(ds.crcstage, test="LRT", reduced=~1, minmu=0.5,
+                      minReplicatesForReplace = 7, fitType = "local", betaPrior = FALSE, useT=TRUE)
+taxa_names(Cstage.keep)[which(mcols(ds.crcstage)$weightsFail)] ## 
+
+## Observe dispersion plot
+DESeq2::plotMA(ds.crcstage)
+plotDispEsts(ds.crcstage) ## dispersion estimate plot fits well
+
+resultsNames(ds.crcstage)
+rs_crcstage_shrink <- output_deseq2(physeq=Cstage.keep, ds=ds.crcstage, contrast="C_stage_short_IIIandIV_vs_II", alpha=0.05, coef=2, testtype="ashr")
+upstage3.rsds <- rs_crcstage_shrink[rs_crcstage_shrink$log2FoldChange > 0 & rs_crcstage_shrink$baseMean > 20, c(1,2,5,8)] ## seq53 and seq13
+downstage3.rsds <- rs_crcstage_shrink[rs_crcstage_shrink$log2FoldChange < 0 & rs_crcstage_shrink$baseMean > 20, c(1,2,5,8)] 
+
+### Try out for corncob 
+Cstage.keep
+crcstage.corncob <- differentialTest(formula=~C_stage_short, phi.formula=~C_stage_short, formula_null=~1, phi.formula_null=~C_stage_short, 
+                                     data=Cstage.keep, test="Wald", boot=FALSE, fdr_cutoff = 0.1, fdr="BH", taxa_are_rows = FALSE)
+plot(crcstage.corncob)
+### No significant results
+
+### Look for consistent results
+intersect(rownames(upstage3.rsds), rownames(upstage3.ancom)) # seq13 (Leptotrichia) 
+intersect(rownames(downstage3.rsds), rownames(upstage2.ancom)) # seq166 (Prevotella)
+```
+
+5/ Repeat the comparison between cancer stages on on nontumour tissue
+
+```{r}
+tissuecase.deseq
+Nstage.deseq <- prune_samples(!(is.na(sample_data(tissuecase.deseq)$C_stage_short)), tissuecase.deseq)
+Nstage.deseq <- prune_samples(sample_data(Nstage.deseq)$sample_type == "nontumour", Nstage.deseq)
+Nstage.deseq <- prune_taxa(taxa_sums(Nstage.deseq)> 0, Nstage.deseq)
+Nstage.deseq
+
+Nstage.ancom <- Nstage.deseq
+otu_table(Nstage.ancom) <- otu_table(abundances(Nstage.ancom),taxa_are_rows = TRUE)
+Nstage.ancom.out <- ancombc(phyloseq=Nstage.ancom, formula="C_stage_short", p_adj_method = "holm", zero_cut = 0.9, lib_cut=1000, group="C_stage_short", struc_zero=TRUE, neg_lb=TRUE, tol=1e-5, max_iter=300, conserve=TRUE, alpha=0.05)
+
+Nstage.ancom.res <- Nstage.ancom.out$res
+length(which(Nstage.ancom.res$q_val[,'C_stage_shortIIIandIV'] < 0.05)) ## 77 taxa have adjusted pvalue < 0.05
+length(which(Nstage.ancom.res$diff_abn[,'C_stage_shortIIIandIV'] ==TRUE))
+
+Nstage.ancom.rs <- output_ancombc(physeq=Nstage.ancom, ancom.out = Nstage.ancom.out, group="C_stage_shortIIIandIV")
+upNstage3.ancom <- Nstage.ancom.rs[Nstage.ancom.rs$test_stat > 0 & Nstage.ancom.rs$log2fc > 0,]
+downNstage3.ancom <- Nstage.ancom.rs[Nstage.ancom.rs$test_stat < 0 & Nstage.ancom.rs$log2fc < 0 ,]
+
+## Try DESeq2 
+Nstage.deseq
+Nstage.keep <- prune_taxa(rowSums(abundances(Nstage.deseq)> 0) > 2, Nstage.deseq)
+summary(sample_sums(Nstage.keep)/sample_sums(Nstage.deseq)) ## mean 90% of sample_sums retention
+Nstage.keep
+sample_data(Nstage.keep)$C_stage_short
+fisher.test(table(sample_data(Nstage.keep)$CST_ilr, sample_data(Nstage.keep)$C_stage_short)) ## NS
+length(which(abundances(Nstage.keep) == 0))/(ntaxa(Nstage.keep)*nsamples(Nstage.keep)) ## 79% of cells are zero, sparse.
+
+### Apply the zero-inflated model 
+ds.Nstage.zinb <- phyloseq_to_deseq2(Nstage.keep, design = ~C_stage_short)
+ds.Nstage.zinb <- zinbwave(ds.Nstage.zinb, epsilon=1e10, verbose=TRUE, K=0, observationalWeights=TRUE, BPPARAM=BiocParallel::SerialParam(), X="~1")
+ds.Nstage <- DESeqDataSet(ds.Nstage.zinb, design = ~C_stage_short)
+ds.Nstage <- estimateSizeFactors(ds.Nstage, type="poscount")
+
+ds.Nstage <- DESeq(ds.Nstage, test="LRT", reduced=~1, minmu=0.5,
+                      minReplicatesForReplace = 7, fitType = "local", betaPrior = FALSE, useT=TRUE)
+taxa_names(Nstage.keep)[which(mcols(ds.Nstage)$weightsFail)] ## 
+
+## Observe dispersion plot
+DESeq2::plotMA(ds.Nstage)
+plotDispEsts(ds.Nstage) ## dispersion estimate plot fits well
+
+resultsNames(ds.Nstage)
+rs_Nstage_shrink <- output_deseq2(physeq=Nstage.keep, ds=ds.Nstage, contrast="C_stage_short_IIIandIV_vs_II", alpha=0.05, coef=2, testtype="ashr")
+
+upNstage3.dsrs <- rs_Nstage_shrink[rs_Nstage_shrink$log2FoldChange > 0 & rs_Nstage_shrink$baseMean > 20, c(1,2,5,8)] ## seq53 (Fusobacterium)
+downNstage3.dsrs <- rs_Nstage_shrink[rs_Nstage_shrink$log2FoldChange < 0 & rs_Nstage_shrink$baseMean > 20, c(1,2,5,8)] # no taxa
+
+intersect(rownames(upNstage3.ancom), rownames(upNstage3.dsrs)) ## no taxa
+```
+
+The comparison showed that only seq13 (Leptotrichia) is deemed as more abundant in tumour of advanced cancer stage III-IV, as compared to stageII. Comparing in cancer stages between nontumour samples yielded no significant overlapping taxa.
+
+Next we visualize the proportional abundance of selected group of bacteria between cancer stages
+
+```{r}
+tissue.dt <- transform_sample_counts(tissue.fil2, function(x) x/sum(x))
+sample_sums(tissue.dt)
+
+Fuso.tx <- rownames(tax_table(tissue.dt)[which(tax_table(tissue.dt)[,'Genus'] == "Fusobacterium"),])
+## Assign species identification to Fusobacterium if blast identity > 99%
+Fuso.df <- as.data.frame(sample_data(tissue.dt))
+identical(rownames(Fuso.df),sample_names(tissue.dt)) # TRUE
+Fuso.df$F_nucleatum <- sample_sums(prune_taxa(c("seq46", "seq53", "seq68", "seq79", "seq80", "seq130", "seq153", "seq186", "seq347", "seq373",
+             "seq480", "seq723", "seq1059", "seq1284"), tissue.dt))
+Fuso.df$F_mortiferum <- sample_sums(prune_taxa(c("seq8", "seq27", "seq135", "seq168", "seq294", "seq296", "seq337", "seq389",
+                                                 "seq424", "seq607", "seq634", "seq645", "seq697", 'seq1159'), tissue.dt))
+Fuso.df$Fusobacterium <- sample_sums(prune_taxa(Fuso.tx, tissue.dt))
+
+## Leptotrichia
+Lepto.tx <- rownames(tax_table(tissue.dt)[which(tax_table(tissue.dt)[,'Genus'] == "Leptotrichia"),])
+Fuso.df$Leptotrichia <- sample_sums(prune_taxa(Lepto.tx, tissue.dt))
+
+## Collinsella as the opposite trend
+Collinsella.tx <- rownames(tax_table(tissue.dt)[which(tax_table(tissue.dt)[,'Genus'] == "Collinsella"),])
+Fuso.df$Collinsella <- sample_sums(prune_taxa(Collinsella.tx, tissue.dt))
+
+##### SummarySE function
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+      require(plyr)
+      
+      # New version of length which can handle NA's: if na.rm==T, don't count them
+      length2 <- function (x, na.rm=FALSE) {
+            if (na.rm) sum(!is.na(x))
+            else       length(x)
+      }
+      
+      # This does the summary. For each group's data frame, return a vector with
+      # N, mean, and sd
+      datac <- ddply(data, groupvars, .drop=.drop,
+                     .fun = function(xx, col) {
+                           c(N    = length2(xx[[col]], na.rm=na.rm),
+                             mean = mean  (xx[[col]], na.rm=na.rm),
+                             sd   = sd     (xx[[col]], na.rm=na.rm)
+                           )
+                     },
+                     measurevar
+      )
+      
+      # Rename the "mean" column    
+      datac <- plyr::rename(datac, c("mean" = measurevar))
+      
+      datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+      
+      # Confidence interval multiplier for standard error
+      # Calculate t-statistic for confidence interval: 
+      # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+      ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+      datac$ci <- datac$se * ciMult
+      return(datac)
+}
+
+### Visualization in different cancer stages
+table(Fuso.df$Cancer_stage)/2
+crc.df <- Fuso.df[which(Fuso.df$Group == 'case'),]
+crc.df$Cancer_stage_short <- NA
+crc.df[which(crc.df$Cancer_stage %in% c("IIA", "IIB")), "Cancer_stage_short"] <- "II"
+crc.df[which(crc.df$Cancer_stage %in% c("IIIA", "IIIB", "IIIC", "IV")), "Cancer_stage_short"] <- "III-IV"
+crc.df$Cancer_stage_short
+
+B <- melt(crc.df, id.vars=c('sample_type', 'Cancer_stage_short'),
+          measure.vars=c("F_mortiferum", "F_nucleatum", "Leptotrichia", "Collinsella"))
+colnames(B) <- c("sample_type", "Cancer_stage_short", "taxa", "value")
+Bc <- summarySE(B, measurevar = 'value', groupvars = c("sample_type", "Cancer_stage_short", 'taxa'))
+relab.graph <- ggplot(Bc, aes(x=taxa, y=value, fill=Cancer_stage_short)) + geom_bar(position=position_dodge(), stat='identity', width=0.7) + 
+      geom_errorbar(aes(ymin=value-se, ymax=value+se), width=0.3, position=position_dodge(0.7)) +  
+      scale_fill_manual(name="Cancer stage", values=c("lightgoldenrod2", "goldenrod4")) + xlab("Taxa") + 
+      facet_wrap(~sample_type, ncol=1) + 
+      ylab("Relative abundance") + theme_bw() + 
+      theme(legend.position = "bottom", axis.text = element_text(size=11,colour='black'), axis.title.x = element_blank(),
+            axis.title.y=element_text(size=12, colour='black', face='bold'), panel.grid.minor = element_blank(),
+            panel.grid.major.x = element_blank(), axis.text.x = element_text(angle=30, hjust=1)) 
+relab.graph ## Figure 2C
+```
+
+==============
+Combine graph 
+
+```{r}
+gg <- egg::ggarrange(diffcrc.graph, difftumbiop.graph, heights = c(0.65, 0.35))
+
+fig2 <- grid.arrange(gg, relab.graph, nrow=1, widths =c(0.65, 0.35)) ## figure 2 
+ggsave(fig2, filename="./Diff_abundance.pdf", height=8.5, width=11, units='in', dpi=600)
+```
+
+====================
+Construct a correlation network for gut mucosal microbiome in cancer patients
+
+```{r}
+tissuecase.deseq
+table(rowSums(abundances(tissuecase.deseq) > 10) >=15)
+case.fil <- prune_taxa(rowSums(abundances(tissuecase.deseq) > 10) >=15, tissuecase.deseq)
+summary(sample_sums(case.fil)/sample_sums(tissuecase.deseq)) ## median 76% of total reads are retained.
+tax_table(case.fil)[,"Genus"]
+mm <- cmultRepl(t(otu_table(case.fil)), method="GBM", output='p-counts')
+otu_table(case.fil) <- otu_table(t(mm), taxa_are_rows = FALSE)
+
+case.cclasso <- cclasso(otu_table(case.fil), counts=TRUE, k_cv=3, n_boot=250,pseudo = 0)
+case.cor.map <- case.cclasso$cor_w
+diag(case.cor.map) <- 0 ## all self-interation is 0 
+case.cor.pvalue <- case.cclasso$p_vals
+case.cor.map[which(case.cor.pvalue <= 0.01)] # A lot of interactions are significant
+
+## Visualization
+plot(density(as.numeric(case.cor.map)), main="All relations")
+plot(density(as.numeric(case.cor.map[abs(case.cor.map) > 0.4])), main='filtered')
+
+length(which(case.cor.pvalue <=0.01 & abs(case.cor.map) >=0.4))## 210 interactions
+## building adjacent matrix
+## For easy visualization, we retained the interactions with highest correlation scores
+case.adj.mat <- ((case.cor.map >=0.37 | case.cor.map <= (-0.395)) & case.cor.pvalue <=0.01) + 0
+
+#### Run the same dataset with SpiecEasi
+case.se.mb <- spiec.easi(case.fil, method='mb', lambda.min.ratio=1e-2, nlambda=20,
+                         pulsar.params=list(rep.num=50))
+case.se.gl <- spiec.easi(case.fil, method="glasso", lambda.min.ratio=1e-2, nlambda=20,
+                         pulsar.params=list(rep.num=50))
+
+case.se.mb
+case.spieceasi.mat <- as.matrix(case.se.mb$refit$stars)
+
+## Investigate the correlation score for significant SpiecEasi correlations
+case.se.corstrength <- case.cor.map[which(case.spieceasi.mat == 1 )]
+summary(unique(case.se.corstrength[case.se.corstrength > 0])) #176/2 interactions ## median 0.4495
+summary(unique(case.se.corstrength[case.se.corstrength < 0]))
+
+#case.adj.mat <- as.matrix(case.se.mb$refit$stars)
+## 
+length(which(case.spieceasi.mat == 1)) ## 232 interactions
+length(which(case.adj.mat == 1)) ## 262 interactions
+which(case.spieceasi.mat == 1)
+which(case.adj.mat == 1)
+
+case.intersect.cor <- intersect(which(case.spieceasi.mat==1),which(case.adj.mat==1))
+length(case.intersect.cor) # 178 interactions are consistent between the two methods
+
+#setdiff(which(case.spieceasi.mat==1), case.intersect.cor)
+
+case.intersect.mat <- matrix(0,nrow=ntaxa(case.fil), ncol=ntaxa(case.fil))
+case.intersect.mat[case.intersect.cor] <- 1
+
+#casetissue.network <- plot_cclasso(case.cor.map, case.adj.mat, case.fil)
+casetissue.network <- plot_cclasso(case.cor.map, case.intersect.mat, case.fil)
+#casetissue.network <- plot_cclasso(case.cor.map, case.spieceasi.mat, case.fil)
+dev.off()
+
+#####
+## Oral clusters in gut also present in saliva?
+gut_oral1 <- c("seq13", "seq40", "seq46", "seq60", "seq25", "seq15", "seq49", "seq24")
+salcor.temp <- saliva.cor.map
+dim(salcor.temp)
+colnames(salcor.temp) <- taxa_names(saliva.corkeep)
+rownames(salcor.temp) <- taxa_names(saliva.corkeep)
+gut_oral1.id <- match(gut_oral1, colnames(salcor.temp))
+gut_oral1.id <- gut_oral1.id[!(is.na(gut_oral1.id))]
+salcor.temp[gut_oral1.id, gut_oral1.id]
+saliva.cor.pvalue[gut_oral1.id, gut_oral1.id]
+## significant hits include seq40-seq46, seq46-seq25, seq25-seq15, seq49-seq15
+
+## oral cluster 2
+gut_oral2 <- c("seq2", "seq9", "seq12", "seq17", "seq75")
+gut_oral2.id <- match(gut_oral2, colnames(salcor.temp))
+salcor.temp[gut_oral2.id, gut_oral2.id]
+saliva.cor.pvalue[gut_oral2.id, gut_oral2.id]
+## significant hits include seq2-seq75, seq12-seq17, 
+```
+
+Construct a correlation network but only for control patients
+
+```{r}
+con.deseq
+table(rowSums(abundances(con.deseq) > 10) >=6)
+con.fil <- prune_taxa(rowSums(abundances(con.deseq) > 10) >=6, con.deseq)
+summary(sample_sums(con.fil)/sample_sums(con.deseq)) ## median 88% of total reads are retained.
+tax_table(con.fil)[,"Genus"]
+
+nn <- cmultRepl(t(otu_table(con.fil)), method="GBM", output='p-counts')
+otu_table(con.fil) <- otu_table(t(nn), taxa_are_rows = FALSE)
+con.fil
+
+con.cclasso <- cclasso(otu_table(con.fil), counts=TRUE, k_cv = 3, n_boot = 250, pseudo=0)
+con.cor.map <- con.cclasso$cor_w
+diag(con.cor.map) <- 0 ## all self-interation is 0 
+con.cor.pvalue <- con.cclasso$p_vals
+con.cor.map[which(con.cor.pvalue <= 0.01)] # A lot of interactions are significant
+
+## Visualization
+plot(density(as.numeric(con.cor.map)), main="All relations")
+plot(density(as.numeric(con.cor.map[abs(con.cor.map) > 0.5])), main='filtered')
+
+length(which(con.cor.pvalue <=0.01 & abs(con.cor.map) >=0.5))## 196 interactions
+## building adjacent matrix
+con.adj.mat <- ((con.cor.map >=0.4 | con.cor.map <= (-0.45)) & con.cor.pvalue <=0.01) + 0
+
+## Run SpiecEasi on the same dataset
+con.se.mb <- spiec.easi(con.fil, method='mb', lambda.min.ratio=1e-2, nlambda=20,
+                         pulsar.params=list(rep.num=50))
+con.se.gl <- spiec.easi(case.fil, method="glasso", lambda.min.ratio=1e-2, nlambda=20,
+                         pulsar.params=list(rep.num=50))
+con.spieceasi.mat <- as.matrix(con.se.mb$refit$stars)
+
+## 
+length(which(con.spieceasi.mat == 1))
+length(which(con.adj.mat==1))
+con.intersect.cor <- intersect(which(con.adj.mat==1), which(con.spieceasi.mat==1))
+length(con.intersect.cor)
+con.intersect.mat <- matrix(0,nrow=ntaxa(con.fil), ncol=ntaxa(con.fil))
+con.intersect.mat[con.intersect.cor] <- 1
+
+contissue.network <- plot_cclasso(con.cor.map, con.intersect.mat, con.fil)
+```
+
+Tumour-associated ASVs. How prevalent are they in the gut and saliva.
+
+```{r}
+taxaset1 <- rownames(diff.tumour[which(diff.tumour$log2fc > 0 & diff.tumour$type==1),])
+tumour.ps <- prune_samples(sample_data(tissue.fil)$sample_type == "tumour", tissue.fil)
+tumour.ps <- prune_taxa(taxa_sums(tumour.ps)> 0, tumour.ps)
+
+colMeans(apply(abundances(tumour.ps)[taxaset1,],1 , function(x) x/sample_sums(tumour.ps)))
+## mean abundances range from 0.007 (Campylobacter) to 0.046 (Leptotrichia seq13)
+prevalence(t(apply(abundances(tumour.ps)[taxaset1,],1 , function(x) x/sample_sums(tumour.ps))), count=FALSE)
+## Prevalence is quite ok: 25% of tumours had seq13 Leptotrichia, while 34% tumours had seq46 (F. nucleatum)
+
+## Account for all other F. nucleatum and Leptotrichia ASVs
+length(which(Fuso.df[Fuso.df$sample_type == 'tumour', c("F_nucleatum")] > 0.001 ))/42 ## 62% present, 54% has relative abundance > 0.1%
+length(which(Fuso.df[Fuso.df$sample_type == 'tumour', c("Leptotrichia")] > 0.001))/42 ## 52% present, 40% has relative abundance > 0.1%
+
+taxaset2 <- rownames(diff.tumour[which(diff.tumour$log2fc > 0 & diff.tumour$type==0),])
+colMeans(apply(abundances(tumour.ps)[taxaset2,],1 , function(x) x/sample_sums(tumour.ps)))
+## much lower abundance, but range from 0.0015 to 0.0023)
+prevalence(t(apply(abundances(tumour.ps)[taxaset2,],1 , function(x) x/sample_sums(tumour.ps))), count=FALSE)
+## Hungatella (seq227) present in 34% of tumours, Lachnoclostridium (seq210) present in 41.8% of tumours
+
+## looking for samples with low abundance of tumour-associated ASVs (<1%)
+length(which(rowSums(apply(abundances(tumour.ps)[c(taxaset1, taxaset2),], 1, function(x) x/sample_sums(tumour.ps))) >= 0.01))
+
+crc_sus.id <- names(which(rowSums(apply(abundances(tumour.ps)[c(taxaset1),], 1, function(x) x/sample_sums(tumour.ps))) < 0.01))
+length(crc_sus.id)
+nontumour.sus.id <- str_replace(crc_sus.id, "T", "H")
+Fuso.df[crc_sus.id,]
+Fuso.df[nontumour.sus.id,]
+for (x in 1:length(crc_sus.id)) {
+      print(crc_sus.id[x])
+      print(tax_table(tumour.ps)[names(sort(abundances(tumour.ps)[,crc_sus.id[x]],decreasing=TRUE)[1:8]),"Genus"])
+      print((sort(abundances(tumour.ps)[,crc_sus.id[x]],decreasing=TRUE)[1:8])/sample_sums(tumour.ps)[crc_sus.id[x]])
+}
+
+for (x in 1:length(nontumour.sus.id)) {
+      print(nontumour.sus.id[x])
+      print(tax_table(tissue.fil)[names(sort(abundances(tissue.fil)[,nontumour.sus.id[x]],decreasing=TRUE)[1:8]),"Genus"])
+      print((sort(abundances(tissue.fil)[,nontumour.sus.id[x]],decreasing=TRUE)[1:8])/sample_sums(tissue.fil)[nontumour.sus.id[x]])
+}
+
+tax_table(tumour.ps)[names(sort(abundances(tumour.ps)[,"T18"],decreasing=TRUE)[1:8]),"Genus"]
+### The odd eggs. Tumour samples with dominance of other taxa 
+## T11: Klebsiella/Enterobacteriaceae (>90%); H11: Klebsiella + Enterobacteriacaea (90%)
+# T13: E.coli (87%);  H13: E. coli as well (96%)
+# T17: Streptococcus + E. coli (80%); H17: E. coli + Collinsella 
+# T20: Megamonas;  H20: Megamonas (27%)
+# T21: Enterococcus (17%); H21: Bacteroides + Enterococcus 
+# T25: F. mortiferum and F. varium (30%); H25: Collinsella + F. mortiferum 
+# T26: Megamonas (36%); H26: Megamonas (16%)
+# T31: E. coli (37%) + Megamonas (9%); H31: Collinsella + Megamonas
+# T33: Megamonas; H33: Collinsella + Megamonas
+# T34: F. mortiferum (12%) + E. coli (11%); H34: E. coli (15%)
+# T35: Helicobacter (12%); H35: Helicobacter
+# T41: Megamonas; H41: Megamonas (41%)
+
+```

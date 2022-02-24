@@ -1,0 +1,204 @@
+sample_ID,Group,sample_type,Patient,enrol_year,Age,sex,ethnicity,weight,height,BMI,Asian_BMI_class,diabetes,HBP,gingivitis,periodontitis,badbreath,diarrhea_7days,current_infection,smoking_history,smoking_active_2y,alcohol_history,alcohol_active_2y,redmeat,pmeat,oilfood,fiber,family_history_cancer,number_pt,largest_pt_size,anatomy,CEA,Tstage,Nstage,Mstage,Cancer_stage,dysplasia,reason_colonoscopy
+B1,control,biopsy,27EN_0001,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+B10,control,biopsy,27EN_0010,2019,73,F,Kinh,53,156,21.8,normal,no,no,no,no,no,no,no,no,no,no,no,moderate,few,much,much,colorectal cancer,1,0.8,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+B11,control,biopsy,27EN_0011,2019,75,M,Kinh,63,166,22.9,normal,no,no,no,yes,no,no,no,yes,no,yes,no,moderate,few,few,moderate,no,2,1.5,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+B12,control,biopsy,27EN_0012,2019,35,M,Kinh,64,170,22.1,normal,no,no,yes,no,yes,yes,no,no,no,yes,yes,moderate,few,moderate,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,diarrhea
+B13,control,biopsy,27EN_0013,2019,67,M,Kinh,50,170,17.3,underweight,no,no,no,no,no,yes,no,no,no,yes,yes,few,few,few,few,no,1,0.7,rectal,NA,NA,NA,NA,NA,no,abdominal pain
+B14,control,biopsy,27EN_0014,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+B15,control,biopsy,27EN_0015,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+B16,control,biopsy,27EN_0016,2019,49,M,Kinh,64,161,24.7,overweight,yes,yes,yes,no,no,yes,no,yes,no,yes,yes,few,few,few,few,breast cancer,1,0.7,rectal,NA,NA,NA,NA,NA,no,diarrhea
+B17,control,biopsy,27EN_0017,2020,69,F,Kinh,50,150,22.2,normal,no,yes,yes,no,no,no,,no,no,no,no,few,few,moderate,few,no,NA,0.6,rectal,NA,NA,NA,NA,NA,no,abdominal pain and constipation
+B18,control,biopsy,27EN_0018,2020,51,M,Kinh,54,160,21.1,normal,no,no,no,no,no,no,no,yes,yes,yes,yes,few,few,moderate,moderate,no,2,1.5,rectal,NA,NA,NA,NA,NA,low,diarrhea
+B19,control,biopsy,27EN_0019,2020,60,M,Kinh,50,152,21.6,normal,yes,no,no,no,no,no,no,yes,no,yes,yes,few,few,moderate,much,no,1,0.5,rectal,NA,NA,NA,NA,NA,no,polypectomy
+B2,control,biopsy,27EN_0002,2019,61,M,Kinh,70,170,24.2,overweight,no,yes,no,no,yes,yes,no,yes,yes,yes,yes,moderate,few,few,few,no,1,1.2,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+B20,control,biopsy,27EN_0020,2020,42,F,Kinh,57,160,22.3,normal,no,no,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,0.7,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+B21,control,biopsy,27EN_0021,2019,55,M,Kinh,73,173,24.4,overweight,no,yes,no,no,no,no,no,yes,no,yes,yes,few,few,few,few,no,1,0.6,descending,NA,NA,NA,NA,NA,no,bloody stool
+B22,control,biopsy,27EN_0022,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+B26,control,biopsy,27EN_0026,2020,60,M,Kinh,65,163,24.5,overweight,no,yes,yes,yes,no,no,no,no,no,yes,yes,few,few,moderate,moderate,no,2,1.5,sigmoid,NA,NA,NA,NA,NA,no,polypectomy
+B27,control,biopsy,27EN_0027,2020,33,M,Kinh,61,164,22.7,normal,no,no,no,no,no,no,no,yes,no,yes,yes,moderate,few,few,few,no,1,1.2,descending,NA,NA,NA,NA,NA,no,
+B28,control,biopsy,27EN_0028,2020,63,M,Kinh,57,169,20,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,much,few,few,few,no,1,1,rectal,NA,NA,NA,NA,NA,no,polypectomy
+B29,control,biopsy,27EN_0029,2020,64,F,Kinh,48,155,20,normal,no,yes,no,no,yes,no,yes,no,no,no,no,few,few,few,much,prostate cancer,1,1,sigmoid,NA,NA,NA,NA,NA,no,
+B3,control,biopsy,27EN_0003,2019,53,F,Kinh,54,153,23.1,overweight,no,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+B4,control,biopsy,27EN_0004,2019,66,M,Kinh,56,170,19.4,normal,yes,no,no,no,no,no,no,yes,yes,yes,yes,few,few,much,few,no,2,1.3,descending,NA,NA,NA,NA,NA,no,healthcheck
+B5,control,biopsy,27EN_0005,2019,57,M,Kinh,48,156,19.7,normal,no,no,no,no,no,no,no,no,no,no,no,few,few,few,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+B6,control,biopsy,27EN_0006,2019,76,M,Kinh,60,160,23.4,overweight,yes,no,no,no,no,yes,no,no,no,no,no,few,few,few,few,no,1,0.5,sigmoid,NA,NA,NA,NA,NA,no,diarrhea
+B7,control,biopsy,27EN_0007,2019,55,M,Kinh,60,167,21.5,normal,no,yes,no,yes,no,no,no,yes,no,yes,yes,moderate,few,much,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,bloody stool
+B9,control,biopsy,27EN_0009,2019,60,M,Kinh,80,170,27.7,overweight,no,yes,no,no,no,no,no,yes,no,no,no,moderate,few,few,moderate,lung cancer,6,1,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+H1,case,nontumour,27EN_1001,2018,72,M,Kinh,63,170,21.8,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,few,few,moderate,moderate,no,1,4,sigmoid,8.2,4A,1,0,IIIB,NA,NA
+H10,case,nontumour,27EN_1010,2019,50,F,Kinh,62,155,25.8,overweight,no,no,no,yes,no,yes,no,no,no,no,no,few,few,moderate,moderate,no,1,4,sigmoid,8,4A,0,0,IIB,NA,NA
+H11,case,nontumour,27EN_1011,2019,56,M,Kinh,64,165,23.5,overweight,no,no,no,no,yes,yes,no,yes,yes,yes,yes,few,few,moderate,few,no,1,5,rectal,2.2,4A,1,0,IIIB,NA,NA
+H12,case,nontumour,27EN_1012,2019,65,M,Kinh,55,160,21.5,normal,no,no,no,no,no,no,,yes,no,yes,no,much,few,few,few,no,1,4,rectal,2.4,4A,1,0,IIIB,NA,NA
+H13,case,nontumour,27EN_1013,2019,57,M,Kinh,64,162,24.4,overweight,no,yes,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,moderate,neck cancer,1,5,sigmoid,1.34,4A,0,0,IIB,NA,NA
+H14,case,nontumour,27EN_1014,2019,57,M,Kinh,67,163,25.2,overweight,no,no,no,no,no,no,no,yes,no,yes,yes,moderate,moderate,moderate,few,no,1,5,sigmoid,15.5,3,1,1,IV,NA,NA
+H15,case,nontumour,27EN_1015,2019,51,M,Kinh,62,165,22.8,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,moderate,moderate,moderate,moderate,no,1,4,rectal,34,3,1,0,IIIB,NA,NA
+H16,case,nontumour,27EN_1016,2019,69,F,Kinh,42,150,18.7,normal,no,no,no,no,no,no,no,no,no,no,no,few,few,moderate,much,no,1,4,sigmoid,5.5,4A,0,0,IIB,NA,NA
+H17,case,nontumour,27EN_1017,2019,65,F,Kinh,48,156,19.7,normal,no,no,no,no,no,no,,no,no,no,no,few,few,moderate,few,no,1,4,sigmoid,19.4,4A,0,0,IIB,NA,NA
+H18,case,nontumour,27EN_1018,2019,37,M,Kinh,60,165,22,normal,no,no,no,no,no,yes,no,no,no,yes,yes,moderate,few,moderate,moderate,liver cancer,1,5,descending,1.5,3,0,0,IIA,NA,NA
+H19,case,nontumour,27EN_1019,2019,70,F,Chinese,67,160,26.2,overweight,yes,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,3,descending,1.7,3,0,0,IIA,NA,NA
+H20,case,nontumour,27EN_1020,2019,42,M,Kinh,65,160,25.4,overweight,no,no,no,no,no,no,no,yes,yes,yes,yes,moderate,few,moderate,moderate,no,2,5,sigmoid,17.1,4A,1,0,IIIB,NA,NA
+H21,case,nontumour,27EN_1021,2019,55,M,Kinh,64,160,25,overweight,no,yes,no,no,no,no,,yes,no,yes,yes,moderate,few,moderate,few,no,1,5,descending,N/A,4A,0,0,IIB,NA,NA
+H22,case,nontumour,27EN_1022,2019,68,M,Kinh,55,159,21.8,normal,no,no,no,no,no,no,no,yes,no,yes,yes,few,few,moderate,few,no,1,6,sigmoid,16,4A,1A,0,IIIB,NA,NA
+H23,case,nontumour,27EN_1023,2019,89,M,Kinh,70,163,26.3,overweight,no,no,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,few,no,1,7,sigmoid,5.2,4B,1,0,IIIC,NA,NA
+H24,case,nontumour,27EN_1024,2019,51,M,Kinh,70,168,24.8,overweight,no,yes,no,no,no,yes,no,yes,no,yes,yes,moderate,few,moderate,moderate,colorectal cancer,1,4,sigmoid,7.2,4,1,0,IIIA,NA,NA
+H25,case,nontumour,27EN_1025,2019,47,M,Kinh,63,166,22.9,normal,yes,yes,no,no,no,no,no,yes,yes,yes,yes,few,few,few,few,,1,5,sigmoid,13.2,4A,0,0,IIB,NA,NA
+H26,case,nontumour,27EN_1026,2019,63,F,Kinh,50,156,20.5,normal,no,yes,no,no,no,no,no,no,no,no,no,few,few,moderate,moderate,no,1,4,descending,5.6,4A,0,0,IIB,NA,NA
+H27,case,nontumour,27EN_1027,2019,54,F,Kinh,63,160,24.6,overweight,no,no,no,no,no,no,no,no,no,no,no,few,few,few,much,no,1,4,sigmoid,N/A,4,1,0,IIIB,NA,NA
+H28,case,nontumour,27EN_1028,2019,66,F,Kinh,49,155,20.4,normal,no,no,no,yes,no,no,no,no,no,no,no,moderate,few,few,moderate,no,1,6,sigmoid,37.1,4A,1,1,IV,NA,NA
+H29,case,nontumour,27EN_1029,2019,65,F,Kinh,57,150,25.3,overweight,yes,yes,no,yes,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,4,sigmoid,N/A,4A,1,0,IIIB,NA,NA
+H30,case,nontumour,27EN_1030,2019,76,F,Kinh,56,155,23.3,overweight,no,yes,no,yes,no,no,no,no,no,no,no,moderate,few,moderate,few,no,1,7,rectal,15.2,4A,1,1,IV,NA,NA
+H31,case,nontumour,27EN_1031,2019,67,M,Kinh,53,160,20.7,normal,no,yes,no,yes,no,yes,no,yes,no,yes,yes,moderate,few,much,moderate,no,1,4,rectal,1.8,3,0,0,IIA,NA,NA
+H32,case,nontumour,27EN_1032,2019,58,M,Chinese,68,172,23,overweight,no,yes,no,no,no,no,no,yes,yes,yes,no,moderate,few,moderate,few,no,1,4,sigmoid,16,4A,0,0,IIB,NA,NA
+H33,case,nontumour,27EN_1033,2019,59,F,Kinh,47,160,18.4,underweight,no,no,no,no,no,yes,no,no,no,no,no,few,few,moderate,few,no,1,6,sigmoid,10.3,4A,1,0,IIIB,NA,NA
+H34,case,nontumour,27EN_1034,2019,69,M,Kinh,52,166,18.9,normal,yes,yes,no,yes,no,no,no,yes,yes,yes,no,few,few,moderate,few,no,1,6,sigmoid,8,4B,1,0,IIIC,NA,NA
+H35,case,nontumour,27EN_1035,2019,65,F,Kinh,56,162,21.3,normal,yes,yes,no,no,no,no,no,no,no,no,no,few,moderate,few,few,colorectal cancer,1,4,sigmoid,72.2,4A,0,0,IIB,NA,NA
+H36,case,nontumour,27EN_1036,2019,23,F,Kinh,43,160,16.8,underweight,no,no,no,no,no,no,no,no,no,no,no,few,few,few,much,no,1,5,sigmoid,N/A,4A,0,0,IIIA,NA,NA
+H37,case,nontumour,27EN_1037,2019,44,M,Kinh,68,162,25.9,overweight,no,no,no,yes,no,no,no,no,no,yes,yes,moderate,few,moderate,few,no,1,3,sigmoid,12.02,3,0,0,IIA,NA,NA
+H38,case,nontumour,27EN_1038,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+H39,case,nontumour,27EN_1039,2019,67,M,Kinh,57,152,24.7,overweight,no,no,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,moderate,no,1,7,descending,0.6,4A,0,0,IIB,NA,NA
+H40,case,nontumour,27EN_1040,2019,67,F,Kinh,50,157,20.3,normal,no,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,few,no,1,5,sigmoid,22,4A,1,0,IIIB,NA,NA
+H41,case,nontumour,27EN_1041,2019,38,F,Kinh,50,161,19.3,normal,no,no,yes,no,no,yes,no,no,no,no,no,moderate,few,moderate,moderate,no,1,4,rectal,8.2,3,0,0,IIA,NA,NA
+H43,case,nontumour,27EN_1043,2020,90,M,Kinh,60,162,22.9,normal,no,yes,no,no,no,yes,no,no,no,no,no,moderate,few,few,few,no,1,5,sigmoid,4.7,4A,1A,0,IIIB,NA,NA
+H44,case,nontumour,27EN_1044,2020,80,M,Kinh,58,155,24.1,overweight,no,yes,no,yes,no,no,no,no,no,yes,yes,few,few,much,moderate,no,1,5,sigmoid,2.3,3,0,0,IIA,NA,NA
+H45,case,nontumour,27EN_1045,2020,63,M,Kinh,56,168,19.8,normal,yes,no,no,no,no,no,no,yes,yes,yes,yes,moderate,few,few,moderate,no,1,6,sigmoid,226.4,4A,1,1,IV,NA,NA
+H46,case,nontumour,27EN_1046,2020,74,M,Kinh,60,164,22.3,normal,yes,yes,no,no,no,no,no,yes,no,yes,yes,few,moderate,moderate,few,no,1,7,sigmoid,6,3,1,0,IIIB,NA,NA
+H47,case,nontumour,27EN_1047,2020,63,M,Kinh,65,167,23.3,overweight,yes,no,no,yes,no,no,no,yes,no,yes,yes,moderate,few,moderate,few,cervical cancer,1,5,sigmoid,6.9,3,1,0,IIIB,NA,NA
+H48,case,nontumour,27EN_1048,2020,48,M,Kinh,60,164,22.3,normal,no,no,no,no,no,no,,yes,yes,yes,no,moderate,few,much,few,lung cancer,1,5,descending,1.7,3,1,0,IIIB,NA,NA
+H49,case,nontumour,27EN_1049,2020,82,F,Kinh,50,150,22.2,normal,no,yes,no,yes,no,no,no,no,no,no,no,few,few,few,moderate,no,1,4,rectal,2.4,3,0,0,IIA,NA,NA
+H50,case,nontumour,27EN_1050,2020,66,M,Kinh,70,165,25.7,overweight,no,yes,no,yes,no,no,no,yes,no,yes,no,moderate,few,few,moderate,no,1,6,sigmoid,3.4,4B,1,0,IIIC,NA,NA
+H51,case,nontumour,27EN_1051,2020,71,F,Kinh,62,153,26.5,overweight,no,yes,no,no,no,no,no,no,no,no,no,few,few,few,moderate,no,1,5,splenic fixture,2.39,4A,1,0,IIIB,NA,NA
+H52,case,nontumour,27EN_1052,2020,58,M,Chinese,80,175,26.1,overweight,no,yes,no,yes,no,no,no,yes,no,yes,yes,moderate,few,moderate,moderate,colorectal cancer,1,8,sigmoid,1.1,3,0,0,IIA,NA,NA
+P1,control,polyp,27EN_0001,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+P10,control,polyp,27EN_0010,2019,73,F,Kinh,53,156,21.8,normal,no,no,no,no,no,no,no,no,no,no,no,moderate,few,much,much,colorectal cancer,1,0.8,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+P11,control,polyp,27EN_0011,2019,75,M,Kinh,63,166,22.9,normal,no,no,no,yes,no,no,no,yes,no,yes,no,moderate,few,few,moderate,no,2,1.5,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+P12,control,polyp,27EN_0012,2019,35,M,Kinh,64,170,22.1,normal,no,no,yes,no,yes,yes,no,no,no,yes,yes,moderate,few,moderate,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,diarrhea
+P13,control,polyp,27EN_0013,2019,67,M,Kinh,50,170,17.3,underweight,no,no,no,no,no,yes,no,no,no,yes,yes,few,few,few,few,no,1,0.7,rectal,NA,NA,NA,NA,NA,no,abdominal pain
+P14,control,polyp,27EN_0014,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+P15,control,polyp,27EN_0015,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+P16,control,polyp,27EN_0016,2019,49,M,Kinh,64,161,24.7,overweight,yes,yes,yes,no,no,yes,no,yes,no,yes,yes,few,few,few,few,breast cancer,1,0.7,rectal,NA,NA,NA,NA,NA,no,diarrhea
+P17,control,polyp,27EN_0017,2020,69,F,Kinh,50,150,22.2,normal,no,yes,yes,no,no,no,,no,no,no,no,few,few,moderate,few,no,NA,0.6,rectal,NA,NA,NA,NA,NA,no,abdominal pain and constipation
+P18,control,polyp,27EN_0018,2020,51,M,Kinh,54,160,21.1,normal,no,no,no,no,no,no,no,yes,yes,yes,yes,few,few,moderate,moderate,no,2,1.5,rectal,NA,NA,NA,NA,NA,low,diarrhea
+P19,control,polyp,27EN_0019,2020,60,M,Kinh,50,152,21.6,normal,yes,no,no,no,no,no,no,yes,no,yes,yes,few,few,moderate,much,no,1,0.5,rectal,NA,NA,NA,NA,NA,no,polypectomy
+P2,control,polyp,27EN_0002,2019,61,M,Kinh,70,170,24.2,overweight,no,yes,no,no,yes,yes,no,yes,yes,yes,yes,moderate,few,few,few,no,1,1.2,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+P20,control,polyp,27EN_0020,2020,42,F,Kinh,57,160,22.3,normal,no,no,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,0.7,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+P21,control,polyp,27EN_0021,2019,55,M,Kinh,73,173,24.4,overweight,no,yes,no,no,no,no,no,yes,no,yes,yes,few,few,few,few,no,1,0.6,descending,NA,NA,NA,NA,NA,no,bloody stool
+P22,control,polyp,27EN_0022,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+P26,control,polyp,27EN_0026,2020,60,M,Kinh,65,163,24.5,overweight,no,yes,yes,yes,no,no,no,no,no,yes,yes,few,few,moderate,moderate,no,2,1.5,sigmoid,NA,NA,NA,NA,NA,no,polypectomy
+P27,control,polyp,27EN_0027,2020,33,M,Kinh,61,164,22.7,normal,no,no,no,no,no,no,no,yes,no,yes,yes,moderate,few,few,few,no,1,1.2,descending,NA,NA,NA,NA,NA,no,
+P28,control,polyp,27EN_0028,2020,63,M,Kinh,57,169,20,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,much,few,few,few,no,1,1,rectal,NA,NA,NA,NA,NA,no,polypectomy
+P29,control,polyp,27EN_0029,2020,64,F,Kinh,48,155,20,normal,no,yes,no,no,yes,no,yes,no,no,no,no,few,few,few,much,prostate cancer,1,1,sigmoid,NA,NA,NA,NA,NA,no,
+P3,control,polyp,27EN_0003,2019,53,F,Kinh,54,153,23.1,overweight,no,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+P4,control,polyp,27EN_0004,2019,66,M,Kinh,56,170,19.4,normal,yes,no,no,no,no,no,no,yes,yes,yes,yes,few,few,much,few,no,2,1.3,descending,NA,NA,NA,NA,NA,no,healthcheck
+P5,control,polyp,27EN_0005,2019,57,M,Kinh,48,156,19.7,normal,no,no,no,no,no,no,no,no,no,no,no,few,few,few,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+P6,control,polyp,27EN_0006,2019,76,M,Kinh,60,160,23.4,overweight,yes,no,no,no,no,yes,no,no,no,no,no,few,few,few,few,no,1,0.5,sigmoid,NA,NA,NA,NA,NA,no,diarrhea
+P7,control,polyp,27EN_0007,2019,55,M,Kinh,60,167,21.5,normal,no,yes,no,yes,no,no,no,yes,no,yes,yes,moderate,few,much,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,bloody stool
+P9,control,polyp,27EN_0009,2019,60,M,Kinh,80,170,27.7,overweight,no,yes,no,no,no,no,no,yes,no,no,no,moderate,few,few,moderate,lung cancer,6,1,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+S0-10,control,saliva,27EN_0010,2019,73,F,Kinh,53,156,21.8,normal,no,no,no,no,no,no,no,no,no,no,no,moderate,few,much,much,colorectal cancer,1,0.8,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+S0-11,control,saliva,27EN_0011,2019,75,M,Kinh,63,166,22.9,normal,no,no,no,yes,no,no,no,yes,no,yes,no,moderate,few,few,moderate,no,2,1.5,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+S0-12,control,saliva,27EN_0012,2019,35,M,Kinh,64,170,22.1,normal,no,no,yes,no,yes,yes,no,no,no,yes,yes,moderate,few,moderate,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,diarrhea
+S0-13,control,saliva,27EN_0013,2019,67,M,Kinh,50,170,17.3,underweight,no,no,no,no,no,yes,no,no,no,yes,yes,few,few,few,few,no,1,0.7,rectal,NA,NA,NA,NA,NA,no,abdominal pain
+S0-14,control,saliva,27EN_0014,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+S0-15,control,saliva,27EN_0015,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+S0-16,control,saliva,27EN_0016,2019,49,M,Kinh,64,161,24.7,overweight,yes,yes,yes,no,no,yes,no,yes,no,yes,yes,few,few,few,few,breast cancer,1,0.7,rectal,NA,NA,NA,NA,NA,no,diarrhea
+S0-17,control,saliva,27EN_0017,2020,69,F,Kinh,50,150,22.2,normal,no,yes,yes,no,no,no,,no,no,no,no,few,few,moderate,few,no,NA,0.6,rectal,NA,NA,NA,NA,NA,no,abdominal pain and constipation
+S0-18,control,saliva,27EN_0018,2020,51,M,Kinh,54,160,21.1,normal,no,no,no,no,no,no,no,yes,yes,yes,yes,few,few,moderate,moderate,no,2,1.5,rectal,NA,NA,NA,NA,NA,low,diarrhea
+S0-19,control,saliva,27EN_0019,2020,60,M,Kinh,50,152,21.6,normal,yes,no,no,no,no,no,no,yes,no,yes,yes,few,few,moderate,much,no,1,0.5,rectal,NA,NA,NA,NA,NA,no,polypectomy
+S0-2,control,saliva,27EN_0002,2019,61,M,Kinh,70,170,24.2,overweight,no,yes,no,no,yes,yes,no,yes,yes,yes,yes,moderate,few,few,few,no,1,1.2,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+S0-20,control,saliva,27EN_0020,2020,42,F,Kinh,57,160,22.3,normal,no,no,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,0.7,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+S0-21,control,saliva,27EN_0021,2019,55,M,Kinh,73,173,24.4,overweight,no,yes,no,no,no,no,no,yes,no,yes,yes,few,few,few,few,no,1,0.6,descending,NA,NA,NA,NA,NA,no,bloody stool
+S0-22,control,saliva,27EN_0022,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+S0-26,control,saliva,27EN_0026,2020,60,M,Kinh,65,163,24.5,overweight,no,yes,yes,yes,no,no,no,no,no,yes,yes,few,few,moderate,moderate,no,2,1.5,sigmoid,NA,NA,NA,NA,NA,no,polypectomy
+S0-27,control,saliva,27EN_0027,2020,33,M,Kinh,61,164,22.7,normal,no,no,no,no,no,no,no,yes,no,yes,yes,moderate,few,few,few,no,1,1.2,descending,NA,NA,NA,NA,NA,no,
+S0-28,control,saliva,27EN_0028,2020,63,M,Kinh,57,169,20,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,much,few,few,few,no,1,1,rectal,NA,NA,NA,NA,NA,no,polypectomy
+S0-29,control,saliva,27EN_0029,2020,64,F,Kinh,48,155,20,normal,no,yes,no,no,yes,no,yes,no,no,no,no,few,few,few,much,prostate cancer,1,1,sigmoid,NA,NA,NA,NA,NA,no,
+S0-3,control,saliva,27EN_0003,2019,53,F,Kinh,54,153,23.1,overweight,no,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,abdominal pain
+S0-4,control,saliva,27EN_0004,2019,66,M,Kinh,56,170,19.4,normal,yes,no,no,no,no,no,no,yes,yes,yes,yes,few,few,much,few,no,2,1.3,descending,NA,NA,NA,NA,NA,no,healthcheck
+S0-5,control,saliva,27EN_0005,2019,57,M,Kinh,48,156,19.7,normal,no,no,no,no,no,no,no,no,no,no,no,few,few,few,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+S0-6,control,saliva,27EN_0006,2019,76,M,Kinh,60,160,23.4,overweight,yes,no,no,no,no,yes,no,no,no,no,no,few,few,few,few,no,1,0.5,sigmoid,NA,NA,NA,NA,NA,no,diarrhea
+S0-7,control,saliva,27EN_0007,2019,55,M,Kinh,60,167,21.5,normal,no,yes,no,yes,no,no,no,yes,no,yes,yes,moderate,few,much,moderate,no,1,1,sigmoid,NA,NA,NA,NA,NA,no,bloody stool
+S0-9,control,saliva,27EN_0009,2019,60,M,Kinh,80,170,27.7,overweight,no,yes,no,no,no,no,no,yes,no,no,no,moderate,few,few,moderate,lung cancer,6,1,sigmoid,NA,NA,NA,NA,NA,low,bloody stool
+S1-1,case,saliva,27EN_1001,2018,72,M,Kinh,63,170,21.8,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,few,few,moderate,moderate,no,1,4,sigmoid,8.2,4A,1,0,IIIB,NA,NA
+S1-10,case,saliva,27EN_1010,2019,50,F,Kinh,62,155,25.8,overweight,no,no,no,yes,no,yes,no,no,no,no,no,few,few,moderate,moderate,no,1,4,sigmoid,8,4A,0,0,IIB,NA,NA
+S1-11,case,saliva,27EN_1011,2019,56,M,Kinh,64,165,23.5,overweight,no,no,no,no,yes,yes,no,yes,yes,yes,yes,few,few,moderate,few,no,1,5,rectal,2.2,4A,1,0,IIIB,NA,NA
+S1-12,case,saliva,27EN_1012,2019,65,M,Kinh,55,160,21.5,normal,no,no,no,no,no,no,,yes,no,yes,no,much,few,few,few,no,1,4,rectal,2.4,4A,1,0,IIIB,NA,NA
+S1-13,case,saliva,27EN_1013,2019,57,M,Kinh,64,162,24.4,overweight,no,yes,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,moderate,neck cancer,1,5,sigmoid,1.34,4A,0,0,IIB,NA,NA
+S1-14,case,saliva,27EN_1014,2019,57,M,Kinh,67,163,25.2,overweight,no,no,no,no,no,no,no,yes,no,yes,yes,moderate,moderate,moderate,few,no,1,5,sigmoid,15.5,3,1,1,IV,NA,NA
+S1-15,case,saliva,27EN_1015,2019,51,M,Kinh,62,165,22.8,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,moderate,moderate,moderate,moderate,no,1,4,rectal,34,3,1,0,IIIB,NA,NA
+S1-16,case,saliva,27EN_1016,2019,69,F,Kinh,42,150,18.7,normal,no,no,no,no,no,no,no,no,no,no,no,few,few,moderate,much,no,1,4,sigmoid,5.5,4A,0,0,IIB,NA,NA
+S1-17,case,saliva,27EN_1017,2019,65,F,Kinh,48,156,19.7,normal,no,no,no,no,no,no,,no,no,no,no,few,few,moderate,few,no,1,4,sigmoid,19.4,4A,0,0,IIB,NA,NA
+S1-18,case,saliva,27EN_1018,2019,37,M,Kinh,60,165,22,normal,no,no,no,no,no,yes,no,no,no,yes,yes,moderate,few,moderate,moderate,liver cancer,1,5,descending,1.5,3,0,0,IIA,NA,NA
+S1-19,case,saliva,27EN_1019,2019,70,F,Chinese,67,160,26.2,overweight,yes,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,3,descending,1.7,3,0,0,IIA,NA,NA
+S1-20,case,saliva,27EN_1020,2019,42,M,Kinh,65,160,25.4,overweight,no,no,no,no,no,no,no,yes,yes,yes,yes,moderate,few,moderate,moderate,no,2,5,sigmoid,17.1,4A,1,0,IIIB,NA,NA
+S1-21,case,saliva,27EN_1021,2019,55,M,Kinh,64,160,25,overweight,no,yes,no,no,no,no,,yes,no,yes,yes,moderate,few,moderate,few,no,1,5,descending,N/A,4A,0,0,IIB,NA,NA
+S1-22,case,saliva,27EN_1022,2019,68,M,Kinh,55,159,21.8,normal,no,no,no,no,no,no,no,yes,no,yes,yes,few,few,moderate,few,no,1,6,sigmoid,16,4A,1A,0,IIIB,NA,NA
+S1-23,case,saliva,27EN_1023,2019,89,M,Kinh,70,163,26.3,overweight,no,no,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,few,no,1,7,sigmoid,5.2,4B,1,0,IIIC,NA,NA
+S1-24,case,saliva,27EN_1024,2019,51,M,Kinh,70,168,24.8,overweight,no,yes,no,no,no,yes,no,yes,no,yes,yes,moderate,few,moderate,moderate,colorectal cancer,1,4,sigmoid,7.2,4,1,0,IIIA,NA,NA
+S1-25,case,saliva,27EN_1025,2019,47,M,Kinh,63,166,22.9,normal,yes,yes,no,no,no,no,no,yes,yes,yes,yes,few,few,few,few,,1,5,sigmoid,13.2,4A,0,0,IIB,NA,NA
+S1-26,case,saliva,27EN_1026,2019,63,F,Kinh,50,156,20.5,normal,no,yes,no,no,no,no,no,no,no,no,no,few,few,moderate,moderate,no,1,4,descending,5.6,4A,0,0,IIB,NA,NA
+S1-27,case,saliva,27EN_1027,2019,54,F,Kinh,63,160,24.6,overweight,no,no,no,no,no,no,no,no,no,no,no,few,few,few,much,no,1,4,sigmoid,N/A,4,1,0,IIIB,NA,NA
+S1-28,case,saliva,27EN_1028,2019,66,F,Kinh,49,155,20.4,normal,no,no,no,yes,no,no,no,no,no,no,no,moderate,few,few,moderate,no,1,6,sigmoid,37.1,4A,1,1,IV,NA,NA
+S1-29,case,saliva,27EN_1029,2019,65,F,Kinh,57,150,25.3,overweight,yes,yes,no,yes,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,4,sigmoid,N/A,4A,1,0,IIIB,NA,NA
+S1-30,case,saliva,27EN_1030,2019,76,F,Kinh,56,155,23.3,overweight,no,yes,no,yes,no,no,no,no,no,no,no,moderate,few,moderate,few,no,1,7,rectal,15.2,4A,1,1,IV,NA,NA
+S1-31,case,saliva,27EN_1031,2019,67,M,Kinh,53,160,20.7,normal,no,yes,no,yes,no,yes,no,yes,no,yes,yes,moderate,few,much,moderate,no,1,4,rectal,1.8,3,0,0,IIA,NA,NA
+S1-32,case,saliva,27EN_1032,2019,58,M,Chinese,68,172,23,overweight,no,yes,no,no,no,no,no,yes,yes,yes,no,moderate,few,moderate,few,no,1,4,sigmoid,16,4A,0,0,IIB,NA,NA
+S1-33,case,saliva,27EN_1033,2019,59,F,Kinh,47,160,18.4,underweight,no,no,no,no,no,yes,no,no,no,no,no,few,few,moderate,few,no,1,6,sigmoid,10.3,4A,1,0,IIIB,NA,NA
+S1-34,case,saliva,27EN_1034,2019,69,M,Kinh,52,166,18.9,normal,yes,yes,no,yes,no,no,no,yes,yes,yes,no,few,few,moderate,few,no,1,6,sigmoid,8,4B,1,0,IIIC,NA,NA
+S1-35,case,saliva,27EN_1035,2019,65,F,Kinh,56,162,21.3,normal,yes,yes,no,no,no,no,no,no,no,no,no,few,moderate,few,few,colorectal cancer,1,4,sigmoid,72.2,4A,0,0,IIB,NA,NA
+S1-36,case,saliva,27EN_1036,2019,23,F,Kinh,43,160,16.8,underweight,no,no,no,no,no,no,no,no,no,no,no,few,few,few,much,no,1,5,sigmoid,N/A,4A,0,0,IIIA,NA,NA
+S1-37,case,saliva,27EN_1037,2019,44,M,Kinh,68,162,25.9,overweight,no,no,no,yes,no,no,no,no,no,yes,yes,moderate,few,moderate,few,no,1,3,sigmoid,12.02,3,0,0,IIA,NA,NA
+S1-38,case,saliva,27EN_1038,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+S1-39,case,saliva,27EN_1039,2019,67,M,Kinh,57,152,24.7,overweight,no,no,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,moderate,no,1,7,descending,0.6,4A,0,0,IIB,NA,NA
+S1-40,case,saliva,27EN_1040,2019,67,F,Kinh,50,157,20.3,normal,no,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,few,no,1,5,sigmoid,22,4A,1,0,IIIB,NA,NA
+S1-41,case,saliva,27EN_1041,2019,38,F,Kinh,50,161,19.3,normal,no,no,yes,no,no,yes,no,no,no,no,no,moderate,few,moderate,moderate,no,1,4,rectal,8.2,3,0,0,IIA,NA,NA
+S1-43,case,saliva,27EN_1043,2020,90,M,Kinh,60,162,22.9,normal,no,yes,no,no,no,yes,no,no,no,no,no,moderate,few,few,few,no,1,5,sigmoid,4.7,4A,1A,0,IIIB,NA,NA
+S1-44,case,saliva,27EN_1044,2020,80,M,Kinh,58,155,24.1,overweight,no,yes,no,yes,no,no,no,no,no,yes,yes,few,few,much,moderate,no,1,5,sigmoid,2.3,3,0,0,IIA,NA,NA
+S1-45,case,saliva,27EN_1045,2020,63,M,Kinh,56,168,19.8,normal,yes,no,no,no,no,no,no,yes,yes,yes,yes,moderate,few,few,moderate,no,1,6,sigmoid,226.4,4A,1,1,IV,NA,NA
+S1-46,case,saliva,27EN_1046,2020,74,M,Kinh,60,164,22.3,normal,yes,yes,no,no,no,no,no,yes,no,yes,yes,few,moderate,moderate,few,no,1,7,sigmoid,6,3,1,0,IIIB,NA,NA
+S1-47,case,saliva,27EN_1047,2020,63,M,Kinh,65,167,23.3,overweight,yes,no,no,yes,no,no,no,yes,no,yes,yes,moderate,few,moderate,few,cervical cancer,1,5,sigmoid,6.9,3,1,0,IIIB,NA,NA
+S1-48,case,saliva,27EN_1048,2020,48,M,Kinh,60,164,22.3,normal,no,no,no,no,no,no,,yes,yes,yes,no,moderate,few,much,few,lung cancer,1,5,descending,1.7,3,1,0,IIIB,NA,NA
+S1-49,case,saliva,27EN_1049,2020,82,F,Kinh,50,150,22.2,normal,no,yes,no,yes,no,no,no,no,no,no,no,few,few,few,moderate,no,1,4,rectal,2.4,3,0,0,IIA,NA,NA
+S1-50,case,saliva,27EN_1050,2020,66,M,Kinh,70,165,25.7,overweight,no,yes,no,yes,no,no,no,yes,no,yes,no,moderate,few,few,moderate,no,1,6,sigmoid,3.4,4B,1,0,IIIC,NA,NA
+S1-51,case,saliva,27EN_1051,2020,71,F,Kinh,62,153,26.5,overweight,no,yes,no,no,no,no,no,no,no,no,no,few,few,few,moderate,no,1,5,splenic fixture,2.39,4A,1,0,IIIB,NA,NA
+S1-52,case,saliva,27EN_1052,2020,58,M,Chinese,80,175,26.1,overweight,no,yes,no,yes,no,no,no,yes,no,yes,yes,moderate,few,moderate,moderate,colorectal cancer,1,8,sigmoid,1.1,3,0,0,IIA,NA,NA
+T1,case,tumour,27EN_1001,2018,72,M,Kinh,63,170,21.8,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,few,few,moderate,moderate,no,1,4,sigmoid,8.2,4A,1,0,IIIB,NA,NA
+T10,case,tumour,27EN_1010,2019,50,F,Kinh,62,155,25.8,overweight,no,no,no,yes,no,yes,no,no,no,no,no,few,few,moderate,moderate,no,1,4,sigmoid,8,4A,0,0,IIB,NA,NA
+T11,case,tumour,27EN_1011,2019,56,M,Kinh,64,165,23.5,overweight,no,no,no,no,yes,yes,no,yes,yes,yes,yes,few,few,moderate,few,no,1,5,rectal,2.2,4A,1,0,IIIB,NA,NA
+T12,case,tumour,27EN_1012,2019,65,M,Kinh,55,160,21.5,normal,no,no,no,no,no,no,,yes,no,yes,no,much,few,few,few,no,1,4,rectal,2.4,4A,1,0,IIIB,NA,NA
+T13,case,tumour,27EN_1013,2019,57,M,Kinh,64,162,24.4,overweight,no,yes,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,moderate,neck cancer,1,5,sigmoid,1.34,4A,0,0,IIB,NA,NA
+T14,case,tumour,27EN_1014,2019,57,M,Kinh,67,163,25.2,overweight,no,no,no,no,no,no,no,yes,no,yes,yes,moderate,moderate,moderate,few,no,1,5,sigmoid,15.5,3,1,1,IV,NA,NA
+T15,case,tumour,27EN_1015,2019,51,M,Kinh,62,165,22.8,normal,no,yes,no,no,no,no,no,yes,yes,yes,yes,moderate,moderate,moderate,moderate,no,1,4,rectal,34,3,1,0,IIIB,NA,NA
+T16,case,tumour,27EN_1016,2019,69,F,Kinh,42,150,18.7,normal,no,no,no,no,no,no,no,no,no,no,no,few,few,moderate,much,no,1,4,sigmoid,5.5,4A,0,0,IIB,NA,NA
+T17,case,tumour,27EN_1017,2019,65,F,Kinh,48,156,19.7,normal,no,no,no,no,no,no,,no,no,no,no,few,few,moderate,few,no,1,4,sigmoid,19.4,4A,0,0,IIB,NA,NA
+T18,case,tumour,27EN_1018,2019,37,M,Kinh,60,165,22,normal,no,no,no,no,no,yes,no,no,no,yes,yes,moderate,few,moderate,moderate,liver cancer,1,5,descending,1.5,3,0,0,IIA,NA,NA
+T19,case,tumour,27EN_1019,2019,70,F,Chinese,67,160,26.2,overweight,yes,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,3,descending,1.7,3,0,0,IIA,NA,NA
+T20,case,tumour,27EN_1020,2019,42,M,Kinh,65,160,25.4,overweight,no,no,no,no,no,no,no,yes,yes,yes,yes,moderate,few,moderate,moderate,no,2,5,sigmoid,17.1,4A,1,0,IIIB,NA,NA
+T21,case,tumour,27EN_1021,2019,55,M,Kinh,64,160,25,overweight,no,yes,no,no,no,no,,yes,no,yes,yes,moderate,few,moderate,few,no,1,5,descending,N/A,4A,0,0,IIB,NA,NA
+T22,case,tumour,27EN_1022,2019,68,M,Kinh,55,159,21.8,normal,no,no,no,no,no,no,no,yes,no,yes,yes,few,few,moderate,few,no,1,6,sigmoid,16,4A,1A,0,IIIB,NA,NA
+T23,case,tumour,27EN_1023,2019,89,M,Kinh,70,163,26.3,overweight,no,no,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,few,no,1,7,sigmoid,5.2,4B,1,0,IIIC,NA,NA
+T24,case,tumour,27EN_1024,2019,51,M,Kinh,70,168,24.8,overweight,no,yes,no,no,no,yes,no,yes,no,yes,yes,moderate,few,moderate,moderate,colorectal cancer,1,4,sigmoid,7.2,4,1,0,IIIA,NA,NA
+T25,case,tumour,27EN_1025,2019,47,M,Kinh,63,166,22.9,normal,yes,yes,no,no,no,no,no,yes,yes,yes,yes,few,few,few,few,,1,5,sigmoid,13.2,4A,0,0,IIB,NA,NA
+T26,case,tumour,27EN_1026,2019,63,F,Kinh,50,156,20.5,normal,no,yes,no,no,no,no,no,no,no,no,no,few,few,moderate,moderate,no,1,4,descending,5.6,4A,0,0,IIB,NA,NA
+T27,case,tumour,27EN_1027,2019,54,F,Kinh,63,160,24.6,overweight,no,no,no,no,no,no,no,no,no,no,no,few,few,few,much,no,1,4,sigmoid,N/A,4,1,0,IIIB,NA,NA
+T28,case,tumour,27EN_1028,2019,66,F,Kinh,49,155,20.4,normal,no,no,no,yes,no,no,no,no,no,no,no,moderate,few,few,moderate,no,1,6,sigmoid,37.1,4A,1,1,IV,NA,NA
+T29,case,tumour,27EN_1029,2019,65,F,Kinh,57,150,25.3,overweight,yes,yes,no,yes,no,no,no,no,no,no,no,moderate,few,moderate,moderate,no,1,4,sigmoid,N/A,4A,1,0,IIIB,NA,NA
+T30,case,tumour,27EN_1030,2019,76,F,Kinh,56,155,23.3,overweight,no,yes,no,yes,no,no,no,no,no,no,no,moderate,few,moderate,few,no,1,7,rectal,15.2,4A,1,1,IV,NA,NA
+T31,case,tumour,27EN_1031,2019,67,M,Kinh,53,160,20.7,normal,no,yes,no,yes,no,yes,no,yes,no,yes,yes,moderate,few,much,moderate,no,1,4,rectal,1.8,3,0,0,IIA,NA,NA
+T32,case,tumour,27EN_1032,2019,58,M,Chinese,68,172,23,overweight,no,yes,no,no,no,no,no,yes,yes,yes,no,moderate,few,moderate,few,no,1,4,sigmoid,16,4A,0,0,IIB,NA,NA
+T33,case,tumour,27EN_1033,2019,59,F,Kinh,47,160,18.4,underweight,no,no,no,no,no,yes,no,no,no,no,no,few,few,moderate,few,no,1,6,sigmoid,10.3,4A,1,0,IIIB,NA,NA
+T34,case,tumour,27EN_1034,2019,69,M,Kinh,52,166,18.9,normal,yes,yes,no,yes,no,no,no,yes,yes,yes,no,few,few,moderate,few,no,1,6,sigmoid,8,4B,1,0,IIIC,NA,NA
+T35,case,tumour,27EN_1035,2019,65,F,Kinh,56,162,21.3,normal,yes,yes,no,no,no,no,no,no,no,no,no,few,moderate,few,few,colorectal cancer,1,4,sigmoid,72.2,4A,0,0,IIB,NA,NA
+T36,case,tumour,27EN_1036,2019,23,F,Kinh,43,160,16.8,underweight,no,no,no,no,no,no,no,no,no,no,no,few,few,few,much,no,1,5,sigmoid,N/A,4A,0,0,IIIA,NA,NA
+T37,case,tumour,27EN_1037,2019,44,M,Kinh,68,162,25.9,overweight,no,no,no,yes,no,no,no,no,no,yes,yes,moderate,few,moderate,few,no,1,3,sigmoid,12.02,3,0,0,IIA,NA,NA
+T38,case,tumour,27EN_1038,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+T39,case,tumour,27EN_1039,2019,67,M,Kinh,57,152,24.7,overweight,no,no,no,no,no,no,no,yes,no,yes,no,moderate,few,moderate,moderate,no,1,7,descending,0.6,4A,0,0,IIB,NA,NA
+T40,case,tumour,27EN_1040,2019,67,F,Kinh,50,157,20.3,normal,no,yes,no,no,no,no,no,no,no,no,no,moderate,few,moderate,few,no,1,5,sigmoid,22,4A,1,0,IIIB,NA,NA
+T41,case,tumour,27EN_1041,2019,38,F,Kinh,50,161,19.3,normal,no,no,yes,no,no,yes,no,no,no,no,no,moderate,few,moderate,moderate,no,1,4,rectal,8.2,3,0,0,IIA,NA,NA
+T43,case,tumour,27EN_1043,2020,90,M,Kinh,60,162,22.9,normal,no,yes,no,no,no,yes,no,no,no,no,no,moderate,few,few,few,no,1,5,sigmoid,4.7,4A,1A,0,IIIB,NA,NA
+T44,case,tumour,27EN_1044,2020,80,M,Kinh,58,155,24.1,overweight,no,yes,no,yes,no,no,no,no,no,yes,yes,few,few,much,moderate,no,1,5,sigmoid,2.3,3,0,0,IIA,NA,NA
+T45,case,tumour,27EN_1045,2020,63,M,Kinh,56,168,19.8,normal,yes,no,no,no,no,no,no,yes,yes,yes,yes,moderate,few,few,moderate,no,1,6,sigmoid,226.4,4A,1,1,IV,NA,NA
+T46,case,tumour,27EN_1046,2020,74,M,Kinh,60,164,22.3,normal,yes,yes,no,no,no,no,no,yes,no,yes,yes,few,moderate,moderate,few,no,1,7,sigmoid,6,3,1,0,IIIB,NA,NA
+T47,case,tumour,27EN_1047,2020,63,M,Kinh,65,167,23.3,overweight,yes,no,no,yes,no,no,no,yes,no,yes,yes,moderate,few,moderate,few,cervical cancer,1,5,sigmoid,6.9,3,1,0,IIIB,NA,NA
+T48,case,tumour,27EN_1048,2020,48,M,Kinh,60,164,22.3,normal,no,no,no,no,no,no,,yes,yes,yes,no,moderate,few,much,few,lung cancer,1,5,descending,1.7,3,1,0,IIIB,NA,NA
+T49,case,tumour,27EN_1049,2020,82,F,Kinh,50,150,22.2,normal,no,yes,no,yes,no,no,no,no,no,no,no,few,few,few,moderate,no,1,4,rectal,2.4,3,0,0,IIA,NA,NA
+T50,case,tumour,27EN_1050,2020,66,M,Kinh,70,165,25.7,overweight,no,yes,no,yes,no,no,no,yes,no,yes,no,moderate,few,few,moderate,no,1,6,sigmoid,3.4,4B,1,0,IIIC,NA,NA
+T51,case,tumour,27EN_1051,2020,71,F,Kinh,62,153,26.5,overweight,no,yes,no,no,no,no,no,no,no,no,no,few,few,few,moderate,no,1,5,splenic fixture,2.39,4A,1,0,IIIB,NA,NA
+T52,case,tumour,27EN_1052,2020,58,M,Chinese,80,175,26.1,overweight,no,yes,no,yes,no,no,no,yes,no,yes,yes,moderate,few,moderate,moderate,colorectal cancer,1,8,sigmoid,1.1,3,0,0,IIA,NA,NA
